@@ -148,6 +148,31 @@ mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
   return(mk.irrev.df)
 }
 
+# cast cross-sectional data into appropriate format for Mk model
+mk_cross_sectional = function(state.list, L) {
+  my.tree = tip.priors = vector("list", length(state.list))
+  base.tree = stree(2)
+    # initialise prior matrix for each tree with uniform prior over second tips
+  zero.mat = matrix(0, nrow=2, ncol=2**L)
+  zero.mat[2,] = 1/(2**L)
+  for(i in 1:length(my.tree)) {
+    my.tree[[i]] = base.tree
+    tip.priors[[i]] = zero.mat
+  }
+  # see comment above. now we construct a list of 2-tip trees, one for each observation
+  my.pruned = my.tree
+  # example set of tip states
+  tip.states = state.list+1
+  
+  # enforce deterministic prior for each cross-sectional observation
+  for(i in 1:length(tip.states)) {
+    tip.priors[[i]][1,tip.states[i]] = 1
+  }
+  cs.out = list( tree=my.pruned,
+                 tips=tip.priors)
+  return(cs.out)
+}
+
 # adapted HyperTraPS plot for HyperHMM outputs
 plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = FALSE) {
   ### produce hypercube subgraph

@@ -103,9 +103,33 @@ for(L in c(2, 3, 4, 5)) {
   }
 }
 
+# cross-sectional examples
+for(L in c(3, 4, 5)) {
+  for(n.states in c(4, 8, 16, 32, 64)) {
+    print(paste0(L, "-", n.states))
+    states = round(runif(n.states, min=0, max=2**L-1))
+    mk.data = mk_cross_sectional(states, L)
+    index_matrix = mk_index_matrix(L, reversible=FALSE)
+    irrev.time = system.time({ fitted_mk.irrev = fit_mk(mk.data$tree, 2**L, 
+                                                        tip_priors=mk.data$tips, 
+                                                        rate_model=index_matrix, 
+                                                        root_prior=c(1,rep(0, 2**L-1)))
+    })
+    index_matrix = mk_index_matrix(L, reversible=TRUE)
+    rev.time = system.time({ fitted_mk.rev = fit_mk(mk.data$tree, 2**L, 
+                                                    tip_priors=mk.data$tips, 
+                                                    rate_model=index_matrix, 
+                                                    root_prior=c(1,rep(0, 2**L-1)))
+    })
+    time.res.df = rbind(time.res.df, data.frame(L=L, tree.size=n.states, fit="cs.reversible", time=rev.time[3]))
+    time.res.df = rbind(time.res.df, data.frame(L=L, tree.size=n.states, fit="cs.irreversible", time=irrev.time[3]))
+  }
+}
+
 sf = 2
 png("mk-timing.png", width=600*sf, height=300*sf, res=72*sf)
 ggplot(time.res.df, aes(x=L, y=time, color=factor(tree.size))) + 
   geom_line(size=3) + facet_wrap(~fit) +
   scale_y_log10() + theme_light() + ylab("Time / s") + labs(color="Observations")
 dev.off()
+
