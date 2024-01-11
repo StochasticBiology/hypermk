@@ -267,7 +267,7 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
     theme(legend.position="none", plot.title = element_text(size = 10))
   
   # plot graph, with thresholding by flux
-  mk.rev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible" & graph.df$Flux > threshold,])
+  mk.rev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible" & graph.df$Flux > 0,])
   g.rev.flux = ggraph(mk.rev.g) + 
     geom_edge_arc(strength=0.1,aes(width=Flux), 
                   arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
