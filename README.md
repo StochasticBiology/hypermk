@@ -5,6 +5,9 @@ HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1
 
 References
 ---
+
+Chapters 7 and 8 of https://bio.libretexts.org/Bookshelves/Evolutionary_Developmental_Biology/Phylogenetic_Comparative_Methods_(Harmon) are excellent reading on the Mk model.
+
 [1] Pagel, M., 1994. Detecting correlated evolution on phylogenies: a general method for the comparative analysis of discrete characters. Proceedings of the Royal Society of London. Series B: Biological Sciences, 255(1342), pp.37-45.
 
 [2] Lewis, P.O., 2001. A likelihood approach to estimating phylogeny from discrete morphological character data. Systematic biology, 50(6), pp.913-925.
