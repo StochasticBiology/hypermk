@@ -3,6 +3,8 @@ HyperMk for reversible accumulation modelling
 
 HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1,2] from phylogenetics to model accumulation processes, including reversibility. The code here uses the `castor` library in R [3] to provide flexible specification and fitting of the Mk model. `mk-collection.R` creates a set of synthetic examples and demonstrates inference using HyperMk. `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation. `Data` contains data on drug resistance evolution in tuberculosis from [4], which is used as a case study.
 
+TO DO: add details of cancer case study
+
 References
 ---
 
