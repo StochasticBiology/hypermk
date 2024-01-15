@@ -210,7 +210,7 @@ plot.hypercube2 = function(trans.f, bigL, probability=FALSE) {
     return(g.flux)
   } else {
     g.prob = ggraph(trans.g) + 
-      geom_edge_arc(strength=0.1,aes(alpha=sqrt(Probability), label=Change), 
+      geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate), label=Change), 
                     arrow=arrow(length=unit(0.2, "inches"), type="closed")) +
       geom_node_label(aes(label=binname), size=2.5, alpha=0.7) + 
       scale_edge_width(limits=c(0,NA))+ theme_void() +
