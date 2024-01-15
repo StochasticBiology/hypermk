@@ -43,55 +43,30 @@ ov.res.df = rbind(ov.res.df, data.frame(Experiment = "ovarian",
 expt = "ovarian"
 
 # plot graph, without thresholding by flux
-mk.rev.g = graph_from_data_frame(ov.rev.df)
-mk.rev.g$barcodes = unlist(lapply(as.integer(V(mk.rev.g)$name), DecToBin, L))
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="reversible",]
-g.rev = ggraph(mk.rev.g) + 
-  geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate)), 
-                arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-  geom_node_label(aes(label=name), size=2, alpha=0.4) + 
+g.rev = plot.hypercube2(ov.rev.df, L, probability=TRUE) +
   ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " reducable to ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse=""))+ theme_void() +
-  theme(legend.position="none", plot.title = element_text(size = 10)) 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
 
 # plot graph, with thresholding by flux
-mk.rev.g = graph_from_data_frame(ov.rev.df[ov.rev.df$Flux > 0,])
-g.rev.flux = ggraph(mk.rev.g) + 
-  geom_edge_arc(strength=0.1,aes(alpha=sqrt(Flux)), 
-                arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-  geom_node_label(aes(label=name), size=2, alpha=0.4) + 
-  scale_edge_width(limits=c(0,NA))+ 
+g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > 0,], L) +
   ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " reducable to ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) + theme_void() +
-  theme(legend.position="none", plot.title = element_text(size = 10))
-
+                collapse="")) 
 
 # plot graph without pruning by flux
-mk.irrev.g = graph_from_data_frame(ov.irrev.df)
-mk.irrev.g$barcodes = unlist(lapply(as.integer(V(mk.irrev.g)$name), DecToBin, L))
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="irreversible",]
-g.irrev = ggraph(mk.irrev.g) + 
-  geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate)), 
-                arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-  geom_node_label(aes(label=name), size=2, alpha=0.4) +
+g.irrev = plot.hypercube2(ov.irrev.df, L, probability=TRUE) +
   ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse=""))+ theme_void() +
-  theme(legend.position="none", plot.title = element_text(size = 10))
+                collapse=""))
 
 # plot graph with pruning by flux 
-mk.irrev.g = graph_from_data_frame(ov.irrev.df[ov.irrev.df$Flux > 0,])
-g.irrev.flux = ggraph(mk.irrev.g) + 
-  geom_edge_arc(strength=0.1,aes(alpha=sqrt(Flux)), 
-                arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-  geom_node_label(aes(label=name), alpha=0.4, size=2) + 
-  scale_edge_width(limits=c(0,NA)) + theme_void() +
+g.irrev.flux = plot.hypercube2(ov.irrev.df[ov.irrev.df$Flux > 0,], L) +
   ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) +
-  theme(legend.position="none", plot.title = element_text(size = 10)) 
+                collapse="")) 
 
 # output to file
 fname = paste0("mk-graphs-", expt, "-", L, ".png")
