@@ -44,7 +44,7 @@ expt = "ovarian"
 
 # plot graph, without thresholding by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="reversible",]
-g.rev = plot.hypercube2(ov.rev.df, L, probability=TRUE) +
+g.rev = plot.hypercube2(ov.rev.df, L, rates=TRUE) +
   ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse="")) 
@@ -57,7 +57,7 @@ g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > 0,], L) +
 
 # plot graph without pruning by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="irreversible",]
-g.irrev = plot.hypercube2(ov.irrev.df, L, probability=TRUE) +
+g.irrev = plot.hypercube2(ov.irrev.df, L, rates=TRUE) +
   ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse=""))

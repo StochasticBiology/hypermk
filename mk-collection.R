@@ -152,7 +152,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
   
   #### this reads tree and barcode data for the tuberculosis set
   if(expt == "TB") {
-    L = 4
+    L = 5
     
     my.tree = read.tree("Data/ng.2878-S2.txt")
     my.data = read.csv("Data/tuberculosis-v5-header-19-29.csv")
@@ -291,7 +291,7 @@ for(i in 1:length(expt.set)) {
   
   # plot graph, without thresholding by flux
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
-  g.rev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",], L, probability=TRUE) +
+  g.rev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",], L, rates=TRUE) +
     ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                     " or simplified  ", round(mk.stats$AIC.reduced, digits=2)), 
                   collapse=""))
@@ -306,7 +306,7 @@ for(i in 1:length(expt.set)) {
   
   # plot graph without pruning by flux
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
-  g.irrev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",], L, probability=TRUE) +
+  g.irrev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",], L, rates=TRUE) +
     ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                     " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                   collapse=""))
