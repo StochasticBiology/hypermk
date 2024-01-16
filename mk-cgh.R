@@ -49,11 +49,17 @@ g.rev = plot.hypercube2(ov.rev.df, L, rates=TRUE) +
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse="")) 
 
+flux.threshold.pmax = 0.1
+flux.threshold = flux.threshold.pmax*max(ov.rev.df$Flux)
+
 # plot graph, with thresholding by flux
-g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > 0,], L) +
+g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > flux.threshold,], L) +
   ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse="")) 
+
+flux.threshold.pmax = 0.1
+flux.threshold = flux.threshold.pmax*max(ov.irrev.df$Flux)
 
 # plot graph without pruning by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="irreversible",]
@@ -63,7 +69,7 @@ g.irrev = plot.hypercube2(ov.irrev.df, L, rates=TRUE) +
                 collapse=""))
 
 # plot graph with pruning by flux 
-g.irrev.flux = plot.hypercube2(ov.irrev.df[ov.irrev.df$Flux > 0,], L) +
+g.irrev.flux = plot.hypercube2(ov.irrev.df[ov.irrev.df$Flux > flux.threshold,], L) +
   ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                   " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse="")) 

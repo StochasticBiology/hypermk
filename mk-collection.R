@@ -4,7 +4,8 @@ source("mk-shared.R")
 
 graph.df = res.df = b.df = i.df = data.frame()
 data.plot = list()
-for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
+#for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
+for(expt in c("TB")) {
   print(expt)
   set.seed(1)
   
@@ -283,36 +284,42 @@ expt.set = c( "single", "single.rev",
               "single.uncertain", "cross.sectional.single", 
               "cross.sectional.many", "cross.sectional.cross", 
               "TB")
-Lset = c(5, 5, 5, 3, 3, 4, 4)
+Lset = c(5, 5, 5, 3, 3, 4, 5)
 
 for(i in 1:length(expt.set)) {
   expt = expt.set[i]
   L = Lset[i]
   
+  flux.threshold.pmax = 0.01
+  if(expt == "TB") { flux.threshold.pmax = 0.05 }
+  this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+  flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
   # plot graph, without thresholding by flux
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
-  g.rev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",], L, rates=TRUE) +
+  g.rev = plot.hypercube2(this.g.df, L, rates=TRUE) +
     ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                     " or simplified  ", round(mk.stats$AIC.reduced, digits=2)), 
                   collapse=""))
   
   # plot graph, with thresholding by flux
-  g.rev.flux = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible" & graph.df$Flux > 0,], L)
+  g.rev.flux = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L)
   
   g.rev.flux2 = g.rev.flux + 
     ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
                     " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                   collapse="")) 
   
+  this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+  flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
   # plot graph without pruning by flux
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
-  g.irrev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",], L, rates=TRUE) +
+  g.irrev = plot.hypercube2(this.g.df, L, rates=TRUE) +
     ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
                     " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                   collapse=""))
   
   # plot graph with pruning by flux 
-  g.irrev.flux = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible" & graph.df$Flux != 0,], L)
+  g.irrev.flux = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L)
   
   g.irrev.flux2 = g.irrev.flux +  
     ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
