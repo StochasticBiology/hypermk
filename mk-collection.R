@@ -2,12 +2,9 @@
 
 source("mk-shared.R")
 
-# for L = 5, single takes 10min, single.rev takes 19min, TB takes 83min
-# for L = 6, single takes ~12h, single.rev takes ~16h. expect TB ~90h? this probably reflects the limit
-
 graph.df = res.df = b.df = i.df = data.frame()
 data.plot = list()
-for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
+for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
   print(expt)
   set.seed(1)
   
@@ -33,7 +30,7 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   # cross-sectional data, several samples (set up for L=3)
   if(expt == "cross.sectional.many") {
     L = 3
-        
+    
     # see comment above. now we construct a list of 2-tip trees, one for each observation
     my.tree = list(stree(2), stree(2), stree(2))
     my.pruned = my.tree
@@ -71,7 +68,7 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   }
   
   ####### random tree with random, single-pathway dynamics
-  if(expt == "single" || expt == "single.rev") {
+  if(expt == "single" || expt == "single.rev" || expt == "single.uncertain") {
     L = 5
     
     # parameterisation for tree construction
@@ -120,21 +117,42 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
       to.do = new.to.do
     }
     
-    # assign feature barcodes to tree   
-    my.tree$tip.label = x[1:length(my.tree$tip.label)]
-    tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
-    my.tree2 = my.tree
-    my.tree2$tip.label = tip.states
+    # if we have precise observations, construct set of tip states
+    if(expt == "single" | expt == "single.rev") {
+      # assign feature barcodes to tree   
+      my.tree$tip.label = x[1:length(my.tree$tip.label)]
+      tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
+      my.tree2 = my.tree
+      my.tree2$tip.label = tip.states
+      
+      my.pruned = my.tree2
+      
+      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
+      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+    }
     
-    my.pruned = my.tree2
-    
-    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
-    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+    # modelling uncertain observations, construct set of tip priors
+    if(expt == "single.uncertain") {
+      # initialise with zero probability
+      my.tree$tip.label = x[1:length(my.tree$tip.label)]
+      tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
+      # loop through observations
+      for(i in 1:length(my.tree$tip.label)) {
+        this.ref = BinToDec(my.tree$tip.label[[i]])
+        tip.priors[i,this.ref+1] = 1
+        if(runif(1) < 0.5) {
+          # otherwise, allow another random state to be compatible with this observation
+          other.ref = round(runif(1, min=0, max=2**L-1))
+          tip.priors[i,other.ref+1] = 1
+        }
+      }
+      my.pruned = my.tree
+    }
   }
   
   #### this reads tree and barcode data for the tuberculosis set
   if(expt == "TB") {
-    L = 4
+    L = 5
     
     my.tree = read.tree("Data/ng.2878-S2.txt")
     my.data = read.csv("Data/tuberculosis-v5-header-19-29.csv")
@@ -178,7 +196,10 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   # remember the (deterministic) prior on the root state! this is important
   
   # for cross-sectional data we use root_priors because we have the uniform prior on a dummy tip as above
-  if(expt == "cross.sectional.single" | expt == "cross.sectional.many" | expt == "cross.sectional.cross"){
+  if(expt == "cross.sectional.single" | 
+     expt == "cross.sectional.many" | 
+     expt == "cross.sectional.cross" |
+     expt == "single.uncertain"){
     print("doing irreversible model fit")
     fitted_mk.irrev = fit_mk(my.pruned, 2**L, 
                              tip_priors=tip.priors, 
@@ -188,7 +209,10 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   } else {
     print("doing irreversible model fit")
     # otherwise we have precisely specified tip states
-    fitted_mk.irrev = fit_mk(my.pruned, 2**L, tip_states=tip.states, rate_model=index_matrix, root_prior=c(1,rep(0, 2**L-1)))
+    fitted_mk.irrev = fit_mk(my.pruned, 2**L, 
+                             tip_states=tip.states, 
+                             rate_model=index_matrix, 
+                             root_prior=c(1,rep(0, 2**L-1)))
   }
   
   # convert inferred rate matrix into transition set
@@ -202,7 +226,10 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   # remember the (deterministic) prior on the root state! this is important
   
   # for cross-sectional data we use root_priors because we have the uniform prior on a dummy tip as above
-  if(expt == "cross.sectional.single" | expt == "cross.sectional.many" | expt == "cross.sectional.cross"){
+  if(expt == "cross.sectional.single" | 
+     expt == "cross.sectional.many" | 
+     expt == "cross.sectional.cross" |
+     expt == "single.uncertain"){
     print("doing reversible model fit")
     fitted_mk.rev = fit_mk(my.pruned, 2**L, 
                            tip_priors=tip.priors, 
@@ -220,7 +247,7 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   
   # convert inferred rate matrix to transition set
   mk_df.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
-
+  
   # set up data frame containing transitions and fluxes
   mk.rev.df = mk_simulate_fluxes_reversible(fitted_mk.rev)
   mk.irrev.df = mk_simulate_fluxes_irreversible(fitted_mk.irrev)
@@ -252,51 +279,45 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   i.df = rbind(i.df, i.stats)
 }
 
-for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
+expt.set = c( "single", "single.rev", 
+              "single.uncertain", "cross.sectional.single", 
+              "cross.sectional.many", "cross.sectional.cross", 
+              "TB")
+Lset = c(5, 5, 5, 3, 3, 4, 4)
+
+for(i in 1:length(expt.set)) {
+  expt = expt.set[i]
+  L = Lset[i]
+  
   # plot graph, without thresholding by flux
-  mk.rev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",])
-  mk.rev.g$barcodes = unlist(lapply(as.integer(V(mk.rev.g)$name), DecToBin, L))
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
-  g.rev = ggraph(mk.rev.g) + 
-    geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate)), 
-                  arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-    geom_node_label(aes(label=name), size=2, alpha=0.4) + 
+  g.rev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",], L, rates=TRUE) +
     ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " reducable to ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse=""))+
-    theme(legend.position="none", plot.title = element_text(size = 10))
+                    " or simplified  ", round(mk.stats$AIC.reduced, digits=2)), 
+                  collapse=""))
   
   # plot graph, with thresholding by flux
-  mk.rev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible" & graph.df$Flux > 0,])
-  g.rev.flux = ggraph(mk.rev.g) + 
-    geom_edge_arc(strength=0.1,aes(width=Flux), 
-                  arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-    geom_node_label(aes(label=name), size=2, alpha=0.4) + 
-    scale_edge_width(limits=c(0,NA))+
-    theme(legend.position="none", plot.title = element_text(size = 10))
+  g.rev.flux = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible" & graph.df$Flux > 0,], L)
   
+  g.rev.flux2 = g.rev.flux + 
+    ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                  collapse="")) 
   
   # plot graph without pruning by flux
-  mk.irrev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",])
-  mk.irrev.g$barcodes = unlist(lapply(as.integer(V(mk.irrev.g)$name), DecToBin, L))
   mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
-  g.irrev = ggraph(mk.irrev.g) + 
-    geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate)), 
-                  arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-    geom_node_label(aes(label=name), size=2, alpha=0.4) +
+  g.irrev = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",], L, rates=TRUE) +
     ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " reducable to ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse=""))+
-    theme(legend.position="none", plot.title = element_text(size = 10))
+                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                  collapse=""))
   
   # plot graph with pruning by flux 
-  mk.irrev.g = graph_from_data_frame(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible" & graph.df$Flux != 0,])
-  g.irrev.flux = ggraph(mk.irrev.g) + 
-    geom_edge_arc(strength=0.1,aes(width=Flux), 
-                  arrow=arrow(length=unit(0.2, "inches"), type="closed")) + 
-    geom_node_label(aes(label=name), alpha=0.4, size=2) + 
-    scale_edge_width(limits=c(0,NA)) +
-    theme(legend.position="none", plot.title = element_text(size = 10)) 
+  g.irrev.flux = plot.hypercube2(graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible" & graph.df$Flux != 0,], L)
+  
+  g.irrev.flux2 = g.irrev.flux +  
+    ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                  collapse=""))
   
   # plot these as simple columns
   g.i = ggplot(i.df[i.df$Experiment==expt,], aes(x=Var1,y=Freq)) + geom_col() +
@@ -309,6 +330,30 @@ for(expt in c( "single", "single.rev", "cross.sectional.single", "cross.sectiona
   sf = 2
   png(fname, width=800*sf, height=400*sf, res=72*sf)
   print(ggarrange(g.i, g.rev, g.irrev, g.b, g.rev.flux, g.irrev.flux, nrow=2, ncol=3))
+  dev.off()
+  
+  # output to file
+  fname = paste0("mk-data-flux-", expt, "-", L, ".png")
+  sf = 2
+  png(fname, width=850*sf, height=300*sf, res=72*sf)
+  print(ggarrange(g.b+xlab("Observations")+ylab("Number of tips")+theme_light(), 
+                  g.rev.flux2, 
+                  g.irrev.flux2, nrow=1, ncol=3, labels=c("A", "B", "C"),
+                  label.y=c(1,0.1,0.1)))
+  dev.off()
+  
+  # output to file
+  fname = paste0("mk-graphs-", expt, "-", L, ".png")
+  sf = 2
+  png(fname, width=600*sf, height=400*sf, res=72*sf)
+  print(ggarrange(g.rev, g.irrev, g.rev.flux, g.irrev.flux, nrow=2, ncol=2))
+  dev.off()
+  
+  # output to file
+  fname = paste0("mk-fluxes-", expt, "-", L, ".png")
+  sf = 2
+  png(fname, width=600*sf, height=300*sf, res=72*sf)
+  print(ggarrange(g.rev.flux2, g.irrev.flux2))
   dev.off()
 }
 

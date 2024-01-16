@@ -188,3 +188,33 @@ plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = F
   }
   return(this.plot)
 }
+
+plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
+  trans.f$Change = ""
+  for(i in 1:nrow(trans.f)) {
+    if(trans.f$From[i] < trans.f$To[i]) { trans.f$Change[i] = paste0("+", bigL-log2(trans.f$To[i]-trans.f$From[i]))  
+    } else { trans.f$Change[i] = paste0("-", bigL-log2(trans.f$From[i]-trans.f$To[i])) 
+    }
+  }
+  trans.g = graph_from_data_frame(trans.f[trans.f$Flux > 0,])
+  bs = unlist(lapply(as.numeric(V(trans.g)$name), DecToBin, len=bigL))
+  V(trans.g)$binname = bs #V(trans.g)$name
+  layers = str_count(bs, "1")
+  if(rates == FALSE) {
+    g.flux = ggraph(trans.g) + 
+      geom_edge_arc(strength=0.1,aes(alpha=sqrt(Flux), label=Change), 
+                    arrow=arrow(length=unit(0.2, "inches"), type="closed")) +
+      geom_node_label(aes(label=binname), size=2.5, alpha=0.7) + 
+      scale_edge_width(limits=c(0,NA))+ theme_void() +
+      theme(legend.position="none", plot.title = element_text(size = 10))
+    return(g.flux)
+  } else {
+    g.prob = ggraph(trans.g) + 
+      geom_edge_arc(strength=0.1,aes(alpha=sqrt(Rate), label=Change), 
+                    arrow=arrow(length=unit(0.2, "inches"), type="closed")) +
+      geom_node_label(aes(label=binname), size=2.5, alpha=0.7) + 
+      scale_edge_width(limits=c(0,NA))+ theme_void() +
+      theme(legend.position="none", plot.title = element_text(size = 10))
+    return(g.prob)
+  }
+}
