@@ -124,11 +124,12 @@ for(expt in c("TB")) {
       my.tree$tip.label = x[1:length(my.tree$tip.label)]
       tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
       my.tree2 = my.tree
-      my.tree2$tip.label = tip.states
+      my.pruned = my.tree
+      barcodes = unlist(lapply(tip.states-1, DecToBin, L))
+      my.pruned$tip.label = tip.states
+      my.tree2$tip.label = barcodes
       
-      my.pruned = my.tree2
-      
-      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
+      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
       data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
     }
     
@@ -175,7 +176,11 @@ for(expt in c("TB")) {
       tip.states = c(tip.states, BinToDec(barcode)+1)
     }
     
-    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
+    my.tree2 = my.pruned
+    barcodes = unlist(lapply(tip.states-1, DecToBin, L))
+    my.tree2$tip.label = barcodes
+    
+    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
     data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
     #    ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
     #    ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
