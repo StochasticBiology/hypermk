@@ -333,6 +333,16 @@ for(i in 1:length(expt.set)) {
   dev.off()
   
   # output to file
+  fname = paste0("mk-data-flux-", expt, "-", L, ".png")
+  sf = 2
+  png(fname, width=850*sf, height=300*sf, res=72*sf)
+  print(ggarrange(g.b+xlab("Observations")+ylab("Number of tips")+theme_light(), 
+                  g.rev.flux2, 
+                  g.irrev.flux2, nrow=1, ncol=3, labels=c("A", "B", "C"),
+                  label.y=c(1,0.1,0.1)))
+  dev.off()
+  
+  # output to file
   fname = paste0("mk-graphs-", expt, "-", L, ".png")
   sf = 2
   png(fname, width=600*sf, height=400*sf, res=72*sf)

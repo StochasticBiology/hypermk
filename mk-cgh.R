@@ -52,7 +52,7 @@ g.rev = plot.hypercube2(ov.rev.df, L, rates=TRUE) +
 # plot graph, with thresholding by flux
 g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > 0,], L) +
   ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " reducable to ", round(mk.stats$AIC.reduced, digits=2)), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
                 collapse="")) 
 
 # plot graph without pruning by flux
@@ -81,4 +81,5 @@ sf = 2
 png(fname, width=600*sf, height=300*sf, res=72*sf)
 print(ggarrange(g.rev.flux, g.irrev.flux))
 dev.off()
+
 
