@@ -3,9 +3,8 @@
 source("mk-shared.R")
 
 graph.df = res.df = b.df = i.df = data.frame()
-data.plot = list()
-#for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
-for(expt in c("TB")) {
+data.plot = data.plot.nb = list()
+for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
   print(expt)
   set.seed(1)
   
@@ -46,6 +45,19 @@ for(expt in c("TB")) {
     for(i in 1:length(tip.states)) {
       tip.priors[[i]][1,tip.states[i]] = 1
     }
+    
+    # record feature sets
+    barcodes = unlist(lapply(tip.states-1, DecToBin, L))
+    barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
+    
+    # construct tables of observed barcodes and their decimals in the dataset  
+    b.stats = as.data.frame(table(barcodes))
+    data.plot[[expt]] = 1
+    ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
+      theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+      xlab("Observations") + ylab("Count") +
+      scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
+    
   }
   
   # cross-sectional data, supporting two competing pathways (set up for L=3)
@@ -66,6 +78,18 @@ for(expt in c("TB")) {
     for(i in 1:length(tip.states)) {
       tip.priors[[i]][1,tip.states[i]] = 1
     }
+    
+    # record feature sets
+    barcodes = unlist(lapply(tip.states-1, DecToBin, L))
+    barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
+    
+    # construct tables of observed barcodes and their decimals in the dataset  
+    b.stats = as.data.frame(table(barcodes))
+    data.plot[[expt]] = 1
+    ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
+      theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+      xlab("Observations") + ylab("Count") +
+      scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
   }
   
   ####### random tree with random, single-pathway dynamics
@@ -77,7 +101,7 @@ for(expt in c("TB")) {
     birth.rate = 1
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
-    accumulation.rate = 2
+    accumulation.rate = 1.2
     loss.rate = 1
     
     # create random phylogeny with 2^n nodes from birth-death process parameterised as above
@@ -129,8 +153,8 @@ for(expt in c("TB")) {
       my.pruned$tip.label = tip.states
       my.tree2$tip.label = barcodes
       
-      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
-      data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+      data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
+      data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
     }
     
     # modelling uncertain observations, construct set of tip priors
@@ -138,6 +162,7 @@ for(expt in c("TB")) {
       # initialise with zero probability
       my.tree$tip.label = x[1:length(my.tree$tip.label)]
       tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
+      my.tree2 = my.tree
       # loop through observations
       for(i in 1:length(my.tree$tip.label)) {
         this.ref = BinToDec(my.tree$tip.label[[i]])
@@ -146,9 +171,14 @@ for(expt in c("TB")) {
           # otherwise, allow another random state to be compatible with this observation
           other.ref = round(runif(1, min=0, max=2**L-1))
           tip.priors[i,other.ref+1] = 1
+          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[1]], "?"), collapse="")
+        } else {
+          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[1]]), collapse="")
         }
       }
       my.pruned = my.tree
+      data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
+      data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
     }
   }
   
@@ -180,18 +210,12 @@ for(expt in c("TB")) {
     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
     my.tree2$tip.label = barcodes
     
-    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
-    data.plot[[length(data.plot)+1]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
-    #    ggtree(my.tree2, layout="circular") + geom_tiplab2(size=1)
-    #    ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+    data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
+    data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=1)
   }
   
   ############# inference section
   # now we have tip.states (feature sets) and my.pruned (tree)
-  
-  # record feature sets
-  barcodes = unlist(lapply(tip.states-1, DecToBin, L))
-  barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
   
   #### irreversible transitions
   # construct matrix describing possible transitions
@@ -276,14 +300,134 @@ for(expt in c("TB")) {
                                     AIC = fitted_mk.irrev$AIC, 
                                     AIC.reduced = fitted_mk.irrev$AIC-2*length(which(mk.irrev.df$Flux==0))))
   
-  # construct tables of observed barcodes and their decimals in the dataset  
-  b.stats = as.data.frame(table(barcodes))
-  i.stats = as.data.frame(table(tip.states-1))
-  b.stats$Experiment = expt
-  i.stats$Experiment = expt
-  b.df = rbind(b.df, b.stats)
-  i.df = rbind(i.df, i.stats)
 }
+
+
+######## figure 1
+L = 5
+flux.threshold.pmax = 0.01
+expt = "single"
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+expt = "single.rev"
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+g.fig.1 = ggarrange(data.plot[["single"]], g.1, g.2,
+                    data.plot[["single.rev"]], g.3, g.4, 
+                    nrow=2, ncol=3, labels=c("A", "B", "C", "D", "E", "F"),
+                    label.y=c(1,0.1,0.1, 1,0.1,0.1))
+
+sf = 2
+png("fig-1.png", width=800*sf, height=600*sf, res=72*sf)
+print(g.fig.1)
+dev.off()
+
+######## figure 2
+L = 5
+flux.threshold.pmax = 0.01
+expt = "single.rev"
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+L = 4
+expt = "cross.sectional.cross"
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+g.fig.2 = ggarrange(data.plot[["single.uncertain"]], g.1, g.2,
+                    data.plot[["cross.sectional.cross"]], g.3, g.4, 
+                    nrow=2, ncol=3, labels=c("A", "B", "C", "D", "E", "F"),
+                    label.y=c(1,0.1,0.1, 1,0.1,0.1))
+
+sf = 2
+png("fig-2.png", width=800*sf, height=600*sf, res=72*sf)
+print(g.fig.2)
+dev.off()
+
+######## figure 3
+L = 5
+flux.threshold.pmax = 0.05
+expt = "TB"
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
+mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
+flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
+  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
+                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
+                collapse="")) 
+
+g.fig.3 = ggarrange(data.plot.nb[["TB"]], g.1, g.2,
+                    nrow=1, ncol=3, labels=c("A", "B", "C"),
+                    label.y=c(1,0.1,0.1))
+
+sf = 2
+png("fig-3.png", width=800*sf, height=300*sf, res=72*sf)
+print(g.fig.3)
+dev.off()
+
+########## figure collection
 
 expt.set = c( "single", "single.rev", 
               "single.uncertain", "cross.sectional.single", 
@@ -375,7 +519,3 @@ for(i in 1:length(data.plot)) {
   print(data.plot[[i]])
   dev.off()
 }
-
-#p.tree = ggtree(my.pruned, layout="circular", branch.length="none") 
-#gheatmap(p.tree, barcodes.numeric, low="white", high="black", colnames_angle=90) + theme(legend.position = "none")
-
