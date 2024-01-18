@@ -1,5 +1,9 @@
 source("mk-shared.R")
 
+data.plot = list()
+
+expt = "ovarian"
+
 L = 5
 ov.table = read.csv("Data/ovarian.csv", header=FALSE)
 ov.reduced = ov.table[,1:L]
@@ -8,6 +12,16 @@ for(i in 1:L) {
   ov.reduced[,i] = ov.reduced[,i]*val
 }
 ov.states = rowSums(ov.reduced)
+
+barcodes = unlist(lapply(ov.states-1, DecToBin, L))
+barcodes.numeric = matrix(unlist(lapply(ov.states-1, DecToBinV, L)), ncol=L)
+
+# construct tables of observed barcodes and their decimals in the dataset  
+b.stats = as.data.frame(table(barcodes))
+data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
+  theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
+  xlab("Observations") + ylab("Count") +
+  scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
 
 ov.data = mk_cross_sectional(ov.states, L)
 index_matrix = mk_index_matrix(L, reversible=FALSE)
@@ -39,8 +53,6 @@ ov.res.df = rbind(ov.res.df, data.frame(Experiment = "ovarian",
                                         AIC = fitted_mk.rev$AIC, 
                                         AIC.reduced = fitted_mk.rev$AIC-2*length(which(ov.rev.df$Flux==0))))
 
-
-expt = "ovarian"
 
 # plot graph, without thresholding by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="reversible",]
@@ -88,4 +100,10 @@ png(fname, width=600*sf, height=300*sf, res=72*sf)
 print(ggarrange(g.rev.flux, g.irrev.flux))
 dev.off()
 
+# output to file
+fname = "fig-4.png"
+sf = 2
+png(fname, width=800*sf, height=300*sf, res=72*sf)
+print(ggarrange(data.plot[[expt]], g.rev.flux, g.irrev.flux))
+dev.off()
 
