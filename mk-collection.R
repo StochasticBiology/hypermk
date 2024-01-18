@@ -85,8 +85,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     
     # construct tables of observed barcodes and their decimals in the dataset  
     b.stats = as.data.frame(table(barcodes))
-    data.plot[[expt]] = 1
-    ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
+    data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
       theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
       xlab("Observations") + ylab("Count") +
       scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
@@ -343,7 +342,7 @@ g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) +
 g.fig.1 = ggarrange(data.plot[["single"]], g.1, g.2,
                     data.plot[["single.rev"]], g.3, g.4, 
                     nrow=2, ncol=3, labels=c("A", "B", "C", "D", "E", "F"),
-                    label.y=c(1,0.1,0.1, 1,0.1,0.1))
+                    label.y=c(1,0.9,0.9, 1,0.9,0.9))
 
 sf = 2
 png("fig-1.png", width=800*sf, height=600*sf, res=72*sf)
@@ -391,7 +390,7 @@ g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) +
 g.fig.2 = ggarrange(data.plot[["single.uncertain"]], g.1, g.2,
                     data.plot[["cross.sectional.cross"]], g.3, g.4, 
                     nrow=2, ncol=3, labels=c("A", "B", "C", "D", "E", "F"),
-                    label.y=c(1,0.1,0.1, 1,0.1,0.1))
+                    label.y=c(1,0.9,0.9, 1,0.9,0.9))
 
 sf = 2
 png("fig-2.png", width=800*sf, height=600*sf, res=72*sf)
