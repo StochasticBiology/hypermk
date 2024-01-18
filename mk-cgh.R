@@ -103,7 +103,10 @@ dev.off()
 # output to file
 fname = "fig-4.png"
 sf = 2
-png(fname, width=800*sf, height=300*sf, res=72*sf)
-print(ggarrange(data.plot[[expt]], g.rev.flux, g.irrev.flux))
+png(fname, width=800*sf, height=600*sf, res=72*sf)
+print(ggarrange(ggarrange(data.plot[[expt]], labels=c("A")),
+                ggarrange(g.rev.flux, g.irrev.flux, ncol=2, 
+                          labels=c("B","C"), label.y=c(0.9,0.9)), 
+                nrow=2))
 dev.off()
 
