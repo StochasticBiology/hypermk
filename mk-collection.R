@@ -52,8 +52,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     
     # construct tables of observed barcodes and their decimals in the dataset  
     b.stats = as.data.frame(table(barcodes))
-    data.plot[[expt]] = 1
-    ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
+    data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
       theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
       xlab("Observations") + ylab("Count") +
       scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
