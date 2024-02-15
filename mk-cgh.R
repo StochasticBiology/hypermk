@@ -13,8 +13,7 @@ for(i in 1:L) {
 }
 ov.states = rowSums(ov.reduced)
 
-barcodes = unlist(lapply(ov.states-1, DecToBin, L))
-barcodes.numeric = matrix(unlist(lapply(ov.states-1, DecToBinV, L)), ncol=L)
+barcodes = unlist(lapply(ov.states, DecToBin, L))
 
 # construct tables of observed barcodes and their decimals in the dataset  
 b.stats = as.data.frame(table(barcodes))
