@@ -35,6 +35,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     my.tree = list(stree(2), stree(2), stree(2))
     my.pruned = my.tree
     # example set of tip states
+    # 1-indexed decimal states
     tip.states = c(1, 3, 7)+1
     
     # initialise prior matrix for each tree with uniform prior over second tips
@@ -47,6 +48,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     }
     
     # record feature sets
+    # get barcodes from (converted) 0-indexed decimal states
     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
     barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
     
@@ -67,6 +69,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     my.tree = list(stree(2), stree(2), stree(2), stree(2), stree(2), stree(2))
     my.pruned = my.tree
     # example set of tip states
+    # 1-indexed decimal states
     tip.states = c(1, 3, 7, 8, 12, 14)+1
     
     # initialise prior matrix for each tree with uniform prior over second tips
@@ -79,6 +82,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     }
     
     # record feature sets
+    # get barcodes from (converted) 0-indexed decimal states
     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
     barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
     
@@ -144,9 +148,11 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     if(expt == "single" | expt == "single.rev") {
       # assign feature barcodes to tree   
       my.tree$tip.label = x[1:length(my.tree$tip.label)]
+      # convert binary tip labels into 1-indexed decimal state refs
       tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
       my.tree2 = my.tree
       my.pruned = my.tree
+      # retrieve barcodes from (converted) 0-indexed decimal state refs
       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
       my.pruned$tip.label = tip.states
       my.tree2$tip.label = barcodes
@@ -163,11 +169,15 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
       my.tree2 = my.tree
       # loop through observations
       for(i in 1:length(my.tree$tip.label)) {
+        # 0-indexed decimal state refs
         this.ref = BinToDec(my.tree$tip.label[[i]])
+        # convert into 1-indexed decimal state refs for priors
         tip.priors[i,this.ref+1] = 1
         if(runif(1) < 0.5) {
           # otherwise, allow another random state to be compatible with this observation
+          # 0-indexed decimal state refs
           other.ref = round(runif(1, min=0, max=2**L-1))
+          # convert into 1-indexed decimal state refs for priors
           tip.priors[i,other.ref+1] = 1
           my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[1]], "?"), collapse="")
         } else {
@@ -201,10 +211,12 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
       ref = which(my.data$Isolate == my.pruned$tip.label[i])
       barcode = paste(as.vector(my.data
                                 [ref,2:(L+1)]), collapse="")
+      # 1-indexed decimal state refs
       tip.states = c(tip.states, BinToDec(barcode)+1)
     }
     
     my.tree2 = my.pruned
+    # retrieve barcodes from (converted) 0-indexed decimal state refs
     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
     my.tree2$tip.label = barcodes
     

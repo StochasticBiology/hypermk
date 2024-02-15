@@ -11,8 +11,9 @@ for(i in 1:L) {
   val = 2**(L-i)
   ov.reduced[,i] = ov.reduced[,i]*val
 }
+# 0-indexed decimal state representation
 ov.states = rowSums(ov.reduced)
-
+# reconstruct barcodes from 0-indexed decimals
 barcodes = unlist(lapply(ov.states, DecToBin, L))
 
 # construct tables of observed barcodes and their decimals in the dataset  
@@ -22,6 +23,7 @@ data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
   xlab("Observations") + ylab("Count") +
   scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
 
+# pass 0-indexed state refs
 ov.data = mk_cross_sectional(ov.states, L)
 index_matrix = mk_index_matrix(L, reversible=FALSE)
 fitted_mk.irrev = fit_mk(ov.data$tree, 2**L, 
@@ -100,7 +102,7 @@ print(ggarrange(g.rev.flux, g.irrev.flux))
 dev.off()
 
 # output to file
-fname = "fig-4.png"
+fname = "fig-4x.png"
 sf = 2
 png(fname, width=800*sf, height=600*sf, res=72*sf)
 print(ggarrange(ggarrange(data.plot[[expt]], labels=c("A")),

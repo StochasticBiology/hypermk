@@ -149,6 +149,7 @@ mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
 }
 
 # cast cross-sectional data into appropriate format for Mk model
+# accepts 0-indexed, decimal state representation; indexes from 1 for Mk fit
 mk_cross_sectional = function(state.list, L) {
   my.tree = tip.priors = vector("list", length(state.list))
   base.tree = stree(2)
