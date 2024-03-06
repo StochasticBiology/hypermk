@@ -177,10 +177,10 @@ mk_cross_sectional = function(state.list, L) {
 # adapted HyperTraPS plot for HyperHMM outputs
 plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = FALSE) {
   ### produce hypercube subgraph
-  trans.g = graph_from_data_frame(trans.p[!is.infinite(trans.p$Probability),])
+  trans.g = igraph::graph_from_data_frame(trans.p[!is.infinite(trans.p$Probability),])
   bs = unlist(lapply(as.numeric(V(trans.g)$name), DecToBin, len=bigL))
   V(trans.g)$binname = V(trans.g)$name
-  layers = str_count(bs, "1")
+  layers = stringr::str_count(bs, "1")
   this.plot =  ggraph(trans.g, layout="sugiyama", layers=layers) + 
     geom_edge_arc(aes(edge_width=Probability, edge_alpha=Probability), strength=0.1) +
     scale_edge_width(limits=c(0,NA)) + scale_edge_alpha(limits=c(0,0.5)) 
@@ -197,7 +197,7 @@ plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
     } else { trans.f$Change[i] = paste0("-", bigL-log2(trans.f$From[i]-trans.f$To[i])) 
     }
   }
-  trans.g = graph_from_data_frame(trans.f[trans.f$Flux > 0,])
+  trans.g = igraph::graph_from_data_frame(trans.f[trans.f$Flux > 0,])
   bs = unlist(lapply(as.numeric(V(trans.g)$name), DecToBin, len=bigL))
   V(trans.g)$binname = bs #V(trans.g)$name
   layers = str_count(bs, "1")

@@ -4,7 +4,9 @@ source("mk-shared.R")
 
 graph.df = res.df = b.df = i.df = data.frame()
 data.plot = data.plot.nb = list()
-for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.single", "cross.sectional.many", "cross.sectional.cross", "TB")) {
+for(expt in c( "single", "single.rev", "single.uncertain",
+              "cross.sectional.single", "cross.sectional.many",
+              "cross.sectional.cross", "TB")) {
   print(expt)
   set.seed(1)
   
@@ -107,11 +109,11 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     loss.rate = 1
     
     # create random phylogeny with 2^n nodes from birth-death process parameterised as above
-    my.tree = rphylo(tree.size, birth=birth.rate, death=death.rate)
+    my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
     my.tree$node.label = as.character(1:my.tree$Nnode)
     tree.labels = c(my.tree$tip.label, my.tree$node.label)
     
-    my.root = getRoot(my.tree)
+    my.root = phangorn::getRoot(my.tree)
     to.do = c(my.root)
     # initialise state list
     x = list()
@@ -241,16 +243,16 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
      expt == "cross.sectional.cross" |
      expt == "single.uncertain"){
     print("doing irreversible model fit")
-    fitted_mk.irrev = fit_mk(my.pruned, 2**L, 
-                             tip_priors=tip.priors, 
+    fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
+                                     tip_priors=tip.priors, 
                              rate_model=index_matrix, 
                              root_prior=c(1,rep(0, 2**L-1)))
     
   } else {
     print("doing irreversible model fit")
     # otherwise we have precisely specified tip states
-    fitted_mk.irrev = fit_mk(my.pruned, 2**L, 
-                             tip_states=tip.states, 
+    fitted_mk.irrev = castor::git_mk(my.pruned, 2**L, 
+                                     tip_states=tip.states, 
                              rate_model=index_matrix, 
                              root_prior=c(1,rep(0, 2**L-1)))
   }
@@ -271,16 +273,16 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
      expt == "cross.sectional.cross" |
      expt == "single.uncertain"){
     print("doing reversible model fit")
-    fitted_mk.rev = fit_mk(my.pruned, 2**L, 
-                           tip_priors=tip.priors, 
+    fitted_mk.rev = castor::git_mk(my.pruned, 2**L, 
+                                   tip_priors=tip.priors, 
                            rate_model=index_matrix, 
                            root_prior=c(1,rep(0, 2**L-1)))
     
   } else {
     print("doing reversible model fit")
     # otherwise we have precisely specified tip states
-    fitted_mk.rev = fit_mk(my.pruned, 2**L, 
-                           tip_states=tip.states, 
+    fitted_mk.rev = castor::git_mk(my.pruned, 2**L, 
+                                   tip_states=tip.states, 
                            rate_model=index_matrix, 
                            root_prior=c(1,rep(0, 2**L-1)))
   }
