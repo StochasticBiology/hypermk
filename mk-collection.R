@@ -179,9 +179,9 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
           other.ref = round(runif(1, min=0, max=2**L-1))
           # convert into 1-indexed decimal state refs for priors
           tip.priors[i,other.ref+1] = 1
-          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[1]], "?"), collapse="")
+          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]], "?"), collapse="")
         } else {
-          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[1]]), collapse="")
+          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]]), collapse="")
         }
       }
       my.pruned = my.tree
@@ -363,7 +363,7 @@ dev.off()
 ######## figure 2
 L = 5
 flux.threshold.pmax = 0.01
-expt = "single.rev"
+expt = "single.uncertain"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
@@ -437,95 +437,10 @@ png("fig-3.png", width=800*sf, height=300*sf, res=72*sf)
 print(g.fig.3)
 dev.off()
 
-########## figure collection
-
-expt.set = c( "single", "single.rev", 
-              "single.uncertain", "cross.sectional.single", 
-              "cross.sectional.many", "cross.sectional.cross", 
-              "TB")
-Lset = c(5, 5, 5, 3, 3, 4, 5)
-
-for(i in 1:length(expt.set)) {
-  expt = expt.set[i]
-  L = Lset[i]
-  
-  flux.threshold.pmax = 0.01
-  if(expt == "TB") { flux.threshold.pmax = 0.05 }
-  this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
-  flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-  # plot graph, without thresholding by flux
-  mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
-  g.rev = plot.hypercube2(this.g.df, L, rates=TRUE) +
-    ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " or simplified  ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse=""))
-  
-  # plot graph, with thresholding by flux
-  g.rev.flux = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L)
-  
-  g.rev.flux2 = g.rev.flux + 
-    ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse="")) 
-  
-  this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
-  flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-  # plot graph without pruning by flux
-  mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
-  g.irrev = plot.hypercube2(this.g.df, L, rates=TRUE) +
-    ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse=""))
-  
-  # plot graph with pruning by flux 
-  g.irrev.flux = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L)
-  
-  g.irrev.flux2 = g.irrev.flux +  
-    ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                    " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                  collapse=""))
-  
-  # plot these as simple columns
-  g.i = ggplot(i.df[i.df$Experiment==expt,], aes(x=Var1,y=Freq)) + geom_col() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  g.b = ggplot(b.df[b.df$Experiment==expt,], aes(x=barcodes,y=Freq)) + geom_col() + 
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  
-  # output to file
-  fname = paste0("mk-", expt, "-", L, ".png")
-  sf = 2
-  png(fname, width=800*sf, height=400*sf, res=72*sf)
-  print(ggarrange(g.i, g.rev, g.irrev, g.b, g.rev.flux, g.irrev.flux, nrow=2, ncol=3))
-  dev.off()
-  
-  # output to file
-  fname = paste0("mk-data-flux-", expt, "-", L, ".png")
-  sf = 2
-  png(fname, width=850*sf, height=300*sf, res=72*sf)
-  print(ggarrange(g.b+xlab("Observations")+ylab("Number of tips")+theme_light(), 
-                  g.rev.flux2, 
-                  g.irrev.flux2, nrow=1, ncol=3, labels=c("A", "B", "C"),
-                  label.y=c(1,0.1,0.1)))
-  dev.off()
-  
-  # output to file
-  fname = paste0("mk-graphs-", expt, "-", L, ".png")
-  sf = 2
-  png(fname, width=600*sf, height=400*sf, res=72*sf)
-  print(ggarrange(g.rev, g.irrev, g.rev.flux, g.irrev.flux, nrow=2, ncol=2))
-  dev.off()
-  
-  # output to file
-  fname = paste0("mk-fluxes-", expt, "-", L, ".png")
-  sf = 2
-  png(fname, width=600*sf, height=300*sf, res=72*sf)
-  print(ggarrange(g.rev.flux2, g.irrev.flux2))
-  dev.off()
-}
-
 for(i in 1:length(data.plot)) {
   fname = paste0("mk-data-", i, ".png")
   png(fname, width=800*sf, height=400*sf, res=72*sf)
   print(data.plot[[i]])
   dev.off()
 }
+
