@@ -103,7 +103,11 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     birth.rate = 1
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
-    accumulation.rate = 1.2
+    if(expt == "single.rev") {
+      accumulation.rate = 3
+    } else {
+      accumulation.rate = 1.2
+    }
     loss.rate = 1
     
     # create random phylogeny with 2^n nodes from birth-death process parameterised as above
@@ -179,14 +183,14 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
           other.ref = round(runif(1, min=0, max=2**L-1))
           # convert into 1-indexed decimal state refs for priors
           tip.priors[i,other.ref+1] = 1
-          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]], "?"), collapse="")
+          my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]], "/\n", DecToBin(other.ref, L), "?"), collapse="")
         } else {
           my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]]), collapse="")
         }
       }
       my.pruned = my.tree
-      data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
-      data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+      data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
+      data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
     }
   }
   
@@ -312,6 +316,16 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
   
 }
 
+titlestr = function(expt, fit, stats.df) {
+  t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
+                  " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
+                collapse="")
+  if(fit == "rev fit") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
+  t.str = paste(c(lead.str, " fit, simplified AIC ~ ", round(stats.df$AIC.reduced, digits=2), 
+                " (full ", round(stats.df$AIC, digits=2), ")"),
+                collapse = "")
+  return(t.str)
+}
 
 ######## figure 1
 L = 5
@@ -320,35 +334,31 @@ expt = "single"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "irrev fit", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "rev fit", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 expt = "single.rev"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "irrev fit", mk.stats)
 g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "rev fit", mk.stats)
 g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 g.fig.1 = ggarrange(data.plot[["single"]], g.1, g.2,
                     data.plot[["single.rev"]], g.3, g.4, 
@@ -367,36 +377,32 @@ expt = "single.uncertain"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "irrev fit", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "rev fit", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 L = 4
 expt = "cross.sectional.cross"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "irrev fit", mk.stats)
 g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "rev fit", mk.stats)
 g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 g.fig.2 = ggarrange(data.plot[["single.uncertain"]], g.1, g.2,
                     data.plot[["cross.sectional.cross"]], g.3, g.4, 
@@ -415,18 +421,16 @@ expt = "TB"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "irrev fit", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", irrev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
+t.str = titlestr(expt, "rev fit", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
-  ggtitle(paste(c(expt, ", rev fit, AIC ", round(mk.stats$AIC, digits=2), 
-                  " or simplified ", round(mk.stats$AIC.reduced, digits=2)), 
-                collapse="")) 
+  ggtitle(t.str) 
 
 g.fig.3 = ggarrange(data.plot.nb[["TB"]], g.1, g.2,
                     nrow=1, ncol=3, labels=c("A", "B", "C"),
