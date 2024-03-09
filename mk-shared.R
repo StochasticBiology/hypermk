@@ -35,6 +35,18 @@ DecToBinV <- function(x, len) {
   return(s)
 }
 
+# function to create a plot label given some statistics and labels
+titlestr = function(expt, fit, stats.df) {
+  t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
+                  " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
+                collapse="")
+  if(fit == "rev fit") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
+  t.str = paste(c(lead.str, " fit, simplified AIC ~ ", round(stats.df$AIC.reduced, digits=2), 
+                  " (full ", round(stats.df$AIC, digits=2), ")"),
+                collapse = "")
+  return(t.str)
+}
+
 # this function converts a species name string from the Newick format which Common Taxonomy Tree gives us into a simpler lower-case, no quotes version comparable to Kostas' dataset
 convname = function(str) {
   return(tolower(gsub("\'", "", gsub("_", " ", str))))

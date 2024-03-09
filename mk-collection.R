@@ -316,17 +316,6 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
   
 }
 
-titlestr = function(expt, fit, stats.df) {
-  t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
-                  " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
-                collapse="")
-  if(fit == "rev fit") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
-  t.str = paste(c(lead.str, " fit, simplified AIC ~ ", round(stats.df$AIC.reduced, digits=2), 
-                " (full ", round(stats.df$AIC, digits=2), ")"),
-                collapse = "")
-  return(t.str)
-}
-
 ######## figure 1
 L = 5
 flux.threshold.pmax = 0.01
