@@ -104,7 +104,7 @@ for(expt in c( "single", "single.rev", "single.uncertain", "cross.sectional.sing
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
     if(expt == "single.rev") {
-      accumulation.rate = 3
+      accumulation.rate = 1.2
     } else {
       accumulation.rate = 1.2
     }
