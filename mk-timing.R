@@ -110,13 +110,13 @@ for(L in c(3, 4, 5)) {
     states = round(runif(n.states, min=0, max=2**L-1))
     mk.data = mk_cross_sectional(states, L)
     index_matrix = mk_index_matrix(L, reversible=FALSE)
-    irrev.time = system.time({ fitted_mk.irrev = castor::git_mk(mk.data$tree, 2**L, 
+    irrev.time = system.time({ fitted_mk.irrev = castor::fit_mk(mk.data$tree, 2**L, 
                                                                 tip_priors=mk.data$tips, 
                                                         rate_model=index_matrix, 
                                                         root_prior=c(1,rep(0, 2**L-1)))
     })
     index_matrix = mk_index_matrix(L, reversible=TRUE)
-    rev.time = system.time({ fitted_mk.rev = castor::git_mk(mk.data$tree, 2**L, 
+    rev.time = system.time({ fitted_mk.rev = castor::fit_mk(mk.data$tree, 2**L, 
                                                             tip_priors=mk.data$tips, 
                                                     rate_model=index_matrix, 
                                                     root_prior=c(1,rep(0, 2**L-1)))

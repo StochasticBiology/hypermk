@@ -255,7 +255,7 @@ for(expt in c( "single", "single.rev", "single.uncertain",
   } else {
     print("doing irreversible model fit")
     # otherwise we have precisely specified tip states
-    fitted_mk.irrev = castor::git_mk(my.pruned, 2**L, 
+    fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
                                      tip_states=tip.states, 
                              rate_model=index_matrix, 
                              root_prior=c(1,rep(0, 2**L-1)))
@@ -277,7 +277,7 @@ for(expt in c( "single", "single.rev", "single.uncertain",
      expt == "cross.sectional.cross" |
      expt == "single.uncertain"){
     print("doing reversible model fit")
-    fitted_mk.rev = castor::git_mk(my.pruned, 2**L, 
+    fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                    tip_priors=tip.priors, 
                            rate_model=index_matrix, 
                            root_prior=c(1,rep(0, 2**L-1)))
@@ -285,7 +285,7 @@ for(expt in c( "single", "single.rev", "single.uncertain",
   } else {
     print("doing reversible model fit")
     # otherwise we have precisely specified tip states
-    fitted_mk.rev = castor::git_mk(my.pruned, 2**L, 
+    fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                    tip_states=tip.states, 
                            rate_model=index_matrix, 
                            root_prior=c(1,rep(0, 2**L-1)))
