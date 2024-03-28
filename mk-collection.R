@@ -106,7 +106,7 @@ for(expt in c( "single", "single.rev", "single.uncertain",
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
     if(expt == "single.rev") {
-      accumulation.rate = 3
+      accumulation.rate = 1.2
     } else {
       accumulation.rate = 1.2
     }
@@ -316,17 +316,6 @@ for(expt in c( "single", "single.rev", "single.uncertain",
                                     AIC = fitted_mk.irrev$AIC, 
                                     AIC.reduced = fitted_mk.irrev$AIC-2*length(which(mk.irrev.df$Flux==0))))
   
-}
-
-titlestr = function(expt, fit, stats.df) {
-  t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
-                  " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
-                collapse="")
-  if(fit == "rev fit") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
-  t.str = paste(c(lead.str, " fit, simplified AIC ~ ", round(stats.df$AIC.reduced, digits=2), 
-                " (full ", round(stats.df$AIC, digits=2), ")"),
-                collapse = "")
-  return(t.str)
 }
 
 ######## figure 1
