@@ -318,7 +318,7 @@ for(expt in c( "single", "single.rev", "single.uncertain",
   
 }
 
-######## figure 1
+######## figure 1; Figure 3 of current ms.
 L = 5
 flux.threshold.pmax = 0.01
 expt = "single"
@@ -361,7 +361,7 @@ png("fig-1.png", width=800*sf, height=600*sf, res=72*sf)
 print(g.fig.1)
 dev.off()
 
-######## figure 2
+######## figure 2; Figure 4 of current ms.
 L = 5
 flux.threshold.pmax = 0.01
 expt = "single.uncertain"
@@ -405,7 +405,7 @@ png("fig-2.png", width=800*sf, height=600*sf, res=72*sf)
 print(g.fig.2)
 dev.off()
 
-######## figure 3
+######## figure 3; Figure 5 of current ms.
 L = 5
 flux.threshold.pmax = 0.05
 expt = "TB"

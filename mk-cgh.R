@@ -95,7 +95,7 @@ png(fname, width=600*sf, height=300*sf, res=72*sf)
 print(ggarrange(g.rev.flux, g.irrev.flux))
 dev.off()
 
-# output to file
+# output to file. Figure 6 of current ms.
 fname = "fig-4x.png"
 sf = 2
 png(fname, width=800*sf, height=600*sf, res=72*sf)

@@ -127,6 +127,7 @@ for(L in c(3, 4, 5)) {
 }
 
 sf = 2
+# Figure 7 of current ms.
 png("mk-timing.png", width=600*sf, height=300*sf, res=72*sf)
 ggplot(time.res.df, aes(x=L, y=time, color=factor(tree.size))) + 
   geom_line(size=3) + facet_wrap(~fit) +
