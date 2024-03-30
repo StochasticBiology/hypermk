@@ -251,7 +251,8 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
     # do the Mk model fitting
     # remember the (deterministic) prior on the root state! this is important
 
-    # FIXME: I do not understand this.
+    # FIXME: I do not understand this. Isn't this the exact same thing
+    # that is done in mk-cgh.R? The "standard protocol" for cross-sectional data?
     # for cross-sectional data we use root_priors because we have the uniform prior on a dummy tip as above
     if(expt == "cross.sectional.single" | 
        expt == "cross.sectional.many" | 
