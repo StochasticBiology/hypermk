@@ -15,11 +15,11 @@ for(L in c(2, 3, 4, 5)) {
     loss.rate = 1
     
     # create random phylogeny with 2^n nodes from birth-death process parameterised as above
-    my.tree = rphylo(tree.size, birth=birth.rate, death=death.rate)
+    my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
     my.tree$node.label = as.character(1:my.tree$Nnode)
     tree.labels = c(my.tree$tip.label, my.tree$node.label)
     
-    my.root = getRoot(my.tree)
+    my.root = phangorn::getRoot(my.tree)
     to.do = c(my.root)
     # initialise state list
     x = list()
@@ -80,7 +80,7 @@ for(L in c(2, 3, 4, 5)) {
     print("doing irreversible model fit")
     # otherwise we have precisely specified tip states
     irrev.time = system.time({
-      fitted_mk.irrev = fit_mk(my.pruned, 2**L, tip_states=tip.states, rate_model=index_matrix, root_prior=c(1,rep(0, 2**L-1)))
+      fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, tip_states=tip.states, rate_model=index_matrix, root_prior=c(1,rep(0, 2**L-1)))
     })
     
     #### reversible transitions
@@ -92,8 +92,8 @@ for(L in c(2, 3, 4, 5)) {
     
     print("doing reversible model fit")
     # otherwise we have precisely specified tip states
-    rev.time = system.time({ fitted_mk.rev = fit_mk(my.pruned, 2**L, 
-                                                    tip_states=tip.states, 
+    rev.time = system.time({ fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
+                                                            tip_states=tip.states, 
                                                     rate_model=index_matrix, 
                                                     root_prior=c(1,rep(0, 2**L-1)))
     })
@@ -110,14 +110,14 @@ for(L in c(3, 4, 5)) {
     states = round(runif(n.states, min=0, max=2**L-1))
     mk.data = mk_cross_sectional(states, L)
     index_matrix = mk_index_matrix(L, reversible=FALSE)
-    irrev.time = system.time({ fitted_mk.irrev = fit_mk(mk.data$tree, 2**L, 
-                                                        tip_priors=mk.data$tips, 
+    irrev.time = system.time({ fitted_mk.irrev = castor::fit_mk(mk.data$tree, 2**L, 
+                                                                tip_priors=mk.data$tips, 
                                                         rate_model=index_matrix, 
                                                         root_prior=c(1,rep(0, 2**L-1)))
     })
     index_matrix = mk_index_matrix(L, reversible=TRUE)
-    rev.time = system.time({ fitted_mk.rev = fit_mk(mk.data$tree, 2**L, 
-                                                    tip_priors=mk.data$tips, 
+    rev.time = system.time({ fitted_mk.rev = castor::fit_mk(mk.data$tree, 2**L, 
+                                                            tip_priors=mk.data$tips, 
                                                     rate_model=index_matrix, 
                                                     root_prior=c(1,rep(0, 2**L-1)))
     })
@@ -127,6 +127,7 @@ for(L in c(3, 4, 5)) {
 }
 
 sf = 2
+# Figure 7 of current ms.
 png("mk-timing.png", width=600*sf, height=300*sf, res=72*sf)
 ggplot(time.res.df, aes(x=L, y=time, color=factor(tree.size))) + 
   geom_line(size=3) + facet_wrap(~fit) +

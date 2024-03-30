@@ -26,14 +26,14 @@ data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
 # pass 0-indexed state refs
 ov.data = mk_cross_sectional(ov.states, L)
 index_matrix = mk_index_matrix(L, reversible=FALSE)
-fitted_mk.irrev = fit_mk(ov.data$tree, 2**L, 
-                         tip_priors=ov.data$tips, 
+fitted_mk.irrev = castor::fit_mk(ov.data$tree, 2**L, 
+                                 tip_priors=ov.data$tips, 
                          rate_model=index_matrix, 
                          root_prior=c(1,rep(0, 2**L-1)))
 
 index_matrix = mk_index_matrix(L, reversible=TRUE)
-fitted_mk.rev = fit_mk(ov.data$tree, 2**L, 
-                       tip_priors=ov.data$tips, 
+fitted_mk.rev = castor::fit_mk(ov.data$tree, 2**L, 
+                               tip_priors=ov.data$tips, 
                        rate_model=index_matrix, 
                        root_prior=c(1,rep(0, 2**L-1)))
 
@@ -95,7 +95,7 @@ png(fname, width=600*sf, height=300*sf, res=72*sf)
 print(ggarrange(g.rev.flux, g.irrev.flux))
 dev.off()
 
-# output to file
+# output to file. Figure 6 of current ms.
 fname = "fig-4x.png"
 sf = 2
 png(fname, width=800*sf, height=600*sf, res=72*sf)
