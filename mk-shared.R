@@ -77,6 +77,15 @@ mk_index_matrix = function(L, reversible=TRUE) {
   return(index_matrix)
 }
 
+
+## FIXME: should be possible to add some minimal error checking
+##        in mk_pull_transitions
+## if reversible = FALSE but any non-zero entry in lower-triangular
+##                       of transition_matrix: give warning
+## if reversible = TRUE  but no non-zero entry in lower-triangular
+##                       of transition_matrix: give warning
+
+
 # extract transitions as data frame from fitted Mk model
 mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   m = fit.mk$transition_matrix
