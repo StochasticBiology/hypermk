@@ -37,6 +37,7 @@ DecToBinV <- function(x, len) {
 
 # function to create a plot label given some statistics and labels
 titlestr = function(expt, fit, stats.df) {
+  ## FIXME: this first t.str I think is dead code. Can it be removed?
   t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
                   " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
                 collapse="")
