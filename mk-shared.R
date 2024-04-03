@@ -161,11 +161,12 @@ mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
 }
 
 # cast cross-sectional data into appropriate format for Mk model
+# FIXME: I think it should say "requires", not "accepts"
 # accepts 0-indexed, decimal state representation; indexes from 1 for Mk fit
 mk_cross_sectional = function(state.list, L) {
   my.tree = tip.priors = vector("list", length(state.list))
-  base.tree = stree(2)
-    # initialise prior matrix for each tree with uniform prior over second tips
+  base.tree = ape::stree(2, type = "star")
+  # initialise prior matrix for each tree with uniform prior over second tips
   zero.mat = matrix(0, nrow=2, ncol=2**L)
   zero.mat[2,] = 1/(2**L)
   for(i in 1:length(my.tree)) {
@@ -176,13 +177,19 @@ mk_cross_sectional = function(state.list, L) {
   my.pruned = my.tree
   # example set of tip states
   tip.states = state.list+1
+
+  # Minimal error checking
+  if (any(tip.states > (2**L)))
+    stop("At least one tip state has a value outside of possible range: ",
+         "[0, (2**L) - 1]. \n",
+         "(state.list argument: 0-indexed decimal representation)")
   
   # enforce deterministic prior for each cross-sectional observation
   for(i in 1:length(tip.states)) {
     tip.priors[[i]][1,tip.states[i]] = 1
   }
-  cs.out = list( tree=my.pruned,
-                 tips=tip.priors)
+  cs.out = list(tree=my.pruned,
+                tips=tip.priors)
   return(cs.out)
 }
 

@@ -25,17 +25,17 @@ data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
 
 # pass 0-indexed state refs
 ov.data = mk_cross_sectional(ov.states, L)
-index_matrix = mk_index_matrix(L, reversible=FALSE)
+index_matrix_irrev = mk_index_matrix(L, reversible=FALSE)
 fitted_mk.irrev = castor::fit_mk(ov.data$tree, 2**L, 
                                  tip_priors=ov.data$tips, 
-                         rate_model=index_matrix, 
-                         root_prior=c(1,rep(0, 2**L-1)))
+                                 rate_model=index_matrix_irrev, 
+                                 root_prior=c(1,rep(0, 2**L-1)))
 
-index_matrix = mk_index_matrix(L, reversible=TRUE)
+index_matrix_rev = mk_index_matrix(L, reversible=TRUE)
 fitted_mk.rev = castor::fit_mk(ov.data$tree, 2**L, 
                                tip_priors=ov.data$tips, 
-                       rate_model=index_matrix, 
-                       root_prior=c(1,rep(0, 2**L-1)))
+                               rate_model=index_matrix_rev, 
+                               root_prior=c(1,rep(0, 2**L-1)))
 
 ov.irrev = mk_pull_transitions(fitted_mk.irrev, reversible = FALSE)
 ov.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
