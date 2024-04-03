@@ -245,7 +245,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
     
     #### irreversible transitions
     # construct matrix describing possible transitions
-    index_matrix = mk_index_matrix(L, reversible=FALSE)
+    index_matrix_irrev = mk_index_matrix(L, reversible=FALSE)
     
     ###### irreversible transitions
     # do the Mk model fitting
@@ -261,7 +261,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         print("doing irreversible model fit")
         fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
                                          tip_priors=tip.priors, 
-                                         rate_model=index_matrix, 
+                                         rate_model=index_matrix_irrev, 
                                          root_prior=c(1,rep(0, 2**L-1)))
         
     } else { # single, single.rev, TB
@@ -269,7 +269,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # otherwise we have precisely specified tip states
       fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
                                        tip_states=tip.states, 
-                                       rate_model=index_matrix, 
+                                       rate_model=index_matrix_irrev, 
                                        root_prior=c(1,rep(0, 2**L-1)))
     }
     
@@ -277,9 +277,9 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
     mk_df.irrev = mk_pull_transitions(fitted_mk.irrev, reversible = FALSE)
     
 #### reversible transitions
-    index_matrix = mk_index_matrix(L, reversible = TRUE)
+    index_matrix_rev = mk_index_matrix(L, reversible = TRUE)
     
-###### reversible transitions
+    ###### reversible transitions
     # do the Mk model fitting
     # remember the (deterministic) prior on the root state! this is important
     
@@ -291,7 +291,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       print("doing reversible model fit")
       fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                      tip_priors=tip.priors, 
-                                     rate_model=index_matrix, 
+                                     rate_model=index_matrix_rev, 
                                      root_prior=c(1,rep(0, 2**L-1)))
       
     } else { # single, single.rev, TB
@@ -299,7 +299,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # otherwise we have precisely specified tip states
       fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                      tip_states=tip.states, 
-                                     rate_model=index_matrix, 
+                                     rate_model=index_matrix_rev, 
                                      root_prior=c(1,rep(0, 2**L-1)))
     }
     
