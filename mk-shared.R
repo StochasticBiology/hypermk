@@ -103,32 +103,32 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
 }
 
 mk_simulate_fluxes_reversible = function(fitted_mk.rev) {
-# to get flux matrix we'll simulate random walkers on the transition matrix
-nwalker = 10000
-threshold = nwalker*(2*L)/10000
+  # to get flux matrix we'll simulate random walkers on the transition matrix
+  nwalker = 10000
+  threshold = nwalker*(2*L)/10000
 
-# set up data frame containing transitions and fluxes
-mk.rev.df = mk_pull_transitions(fitted_mk.rev, reversible=TRUE)
-mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
-mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
-mk.rev.df$Flux = 0
-# simulate walkers starting from 0^L
-for(walk in 1:nwalker) {
-  state = 0
-  for(t in 1:(2*L)) {
-    # pull row of transition matrix
-    trans = fitted_mk.rev$transition_matrix[state+1,]
-    trans[state+1] = 0
-    if(sum(trans)==0) {break}
-    # sample the next transition
-    this.out = sample(0:(2**L-1), size=1, prob=trans)
-    
-    ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
-    mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
-    state = this.out     
+  # set up data frame containing transitions and fluxes
+  mk.rev.df = mk_pull_transitions(fitted_mk.rev, reversible=TRUE)
+  mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
+  mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
+  mk.rev.df$Flux = 0
+  # simulate walkers starting from 0^L
+  for(walk in 1:nwalker) {
+    state = 0
+    for(t in 1:(2*L)) {
+      # pull row of transition matrix
+      trans = fitted_mk.rev$transition_matrix[state+1,]
+      trans[state+1] = 0
+      if(sum(trans)==0) {break}
+      # sample the next transition
+      this.out = sample(0:(2**L-1), size=1, prob=trans)
+      
+      ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
+      mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
+      state = this.out     
+    }
   }
-}
-return(mk.rev.df)
+  return(mk.rev.df)
 }
 
 mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
