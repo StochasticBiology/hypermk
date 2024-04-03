@@ -116,6 +116,22 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   return(mk_df)
 }
 
+## FIXME: mk_pull_transitions has a single function, with argument reversible.
+## Here, there are two functions. This seems slightly inconsistent.
+## The simplest approach to make them consistent would be
+
+## mk_simulate_fluxes <- function(x, reversible = TRUE) {
+##   if (reversible) {
+##     return(mk_simulate_fluxes_reversible(x))
+##   } else {
+##     return(mk_simulate_fluxes_irreversible(x))
+##   }
+## }
+## In that function, it should be possible to add some minimal error checking
+## - if reversible = FALSE and any non-zero lower-triangular: stop
+## - if reversible = TRUE  and no  non-zero lower-triangular: give warning
+
+
 mk_simulate_fluxes_reversible = function(fitted_mk.rev) {
   # to get flux matrix we'll simulate random walkers on the transition matrix
   nwalker = 10000
