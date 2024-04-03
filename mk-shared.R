@@ -35,6 +35,12 @@ DecToBinV <- function(x, len) {
   return(s)
 }
 
+## FIXME: should argument fit be fit = c("rev fit", "irrev fit")
+##   and then, inside the function, first line
+##   fit <- match.arg(fit)
+##   so that anything not "rev fit" "irrev fit" is caught as an error?
+##   I passed something very similar to "rev fit" and was getting "Irreversible"
+
 # function to create a plot label given some statistics and labels
 titlestr = function(expt, fit, stats.df) {
   ## FIXME: this first t.str I think is dead code. Can it be removed?
