@@ -258,6 +258,10 @@ plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = F
   return(this.plot)
 }
 
+
+## FIXME: why use rates = TRUE if it seems emphasis is on fluxes,
+##        (e.g., AIC.reduced) and rates can give impossible transitions
+##        (transitions from states that cannot be reached)
 plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
   trans.f$Change = ""
   for(i in 1:nrow(trans.f)) {
