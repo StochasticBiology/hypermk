@@ -35,8 +35,15 @@ DecToBinV <- function(x, len) {
   return(s)
 }
 
+## FIXME: should argument fit be fit = c("rev fit", "irrev fit")
+##   and then, inside the function, first line
+##   fit <- match.arg(fit)
+##   so that anything not "rev fit" "irrev fit" is caught as an error?
+##   I passed something very similar to "rev fit" and was getting "Irreversible"
+
 # function to create a plot label given some statistics and labels
 titlestr = function(expt, fit, stats.df) {
+  ## FIXME: this first t.str I think is dead code. Can it be removed?
   t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
                   " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
                 collapse="")
@@ -77,6 +84,15 @@ mk_index_matrix = function(L, reversible=TRUE) {
   return(index_matrix)
 }
 
+
+## FIXME: should be possible to add some minimal error checking
+##        in mk_pull_transitions
+## if reversible = FALSE but any non-zero entry in lower-triangular
+##                       of transition_matrix: give warning
+## if reversible = TRUE  but no non-zero entry in lower-triangular
+##                       of transition_matrix: give warning
+
+
 # extract transitions as data frame from fitted Mk model
 mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   m = fit.mk$transition_matrix
@@ -92,7 +108,12 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   } else {
     # loop over transitions
     for(i in 1:(nrow(m)-1)) {
-      for(j in (i+1):ncol(m)) {
+      ## FIXME: reversible case returns -1 for self -> self transitions
+      ## but irreversible doesn't.
+      ## If next loop went from i:ncol(m) it would also return -1 in self-transitions,
+      ## like reversible case.
+      ## Alternatively, for reversible, delete all rows where From == To.
+      for(j in (i+1):ncol(m)) { 
         if(m[i,j] != 0) {
           mk_df = rbind(mk_df, data.frame(From=i-1, To=j-1, Rate=m[i,j]/sum(m[i,(i+1):ncol(m)])))
         }
@@ -102,33 +123,49 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   return(mk_df)
 }
 
-mk_simulate_fluxes_reversible = function(fitted_mk.rev) {
-# to get flux matrix we'll simulate random walkers on the transition matrix
-nwalker = 10000
-threshold = nwalker*(2*L)/10000
+## FIXME: mk_pull_transitions has a single function, with argument reversible.
+## Here, there are two functions. This seems slightly inconsistent.
+## The simplest approach to make them consistent would be
 
-# set up data frame containing transitions and fluxes
-mk.rev.df = mk_pull_transitions(fitted_mk.rev, reversible=TRUE)
-mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
-mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
-mk.rev.df$Flux = 0
-# simulate walkers starting from 0^L
-for(walk in 1:nwalker) {
-  state = 0
-  for(t in 1:(2*L)) {
-    # pull row of transition matrix
-    trans = fitted_mk.rev$transition_matrix[state+1,]
-    trans[state+1] = 0
-    if(sum(trans)==0) {break}
-    # sample the next transition
-    this.out = sample(0:(2**L-1), size=1, prob=trans)
-    
-    ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
-    mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
-    state = this.out     
+## mk_simulate_fluxes <- function(x, reversible = TRUE) {
+##   if (reversible) {
+##     return(mk_simulate_fluxes_reversible(x))
+##   } else {
+##     return(mk_simulate_fluxes_irreversible(x))
+##   }
+## }
+## In that function, it should be possible to add some minimal error checking
+## - if reversible = FALSE and any non-zero lower-triangular: stop
+## - if reversible = TRUE  and no  non-zero lower-triangular: give warning
+
+
+mk_simulate_fluxes_reversible = function(fitted_mk.rev) {
+  # to get flux matrix we'll simulate random walkers on the transition matrix
+  nwalker = 10000
+  threshold = nwalker*(2*L)/10000
+
+  # set up data frame containing transitions and fluxes
+  mk.rev.df = mk_pull_transitions(fitted_mk.rev, reversible=TRUE)
+  mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
+  mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
+  mk.rev.df$Flux = 0
+  # simulate walkers starting from 0^L
+  for(walk in 1:nwalker) {
+    state = 0
+    for(t in 1:(2*L)) {
+      # pull row of transition matrix
+      trans = fitted_mk.rev$transition_matrix[state+1,]
+      trans[state+1] = 0
+      if(sum(trans)==0) {break}
+      # sample the next transition
+      this.out = sample(0:(2**L-1), size=1, prob=trans)
+      
+      ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
+      mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
+      state = this.out     
+    }
   }
-}
-return(mk.rev.df)
+  return(mk.rev.df)
 }
 
 mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
@@ -193,6 +230,18 @@ mk_cross_sectional = function(state.list, L) {
   return(cs.out)
 }
 
+
+## FIXME: it should be possible to write a wrapper for cross-sectional that
+##  takes a data set (as 0-index decimal or matrix of subjects-by-alterations)
+##  and a TRUE/FALSE for reversible and does all the rest
+##  (calls mk_cross_sectional, mk_index_matrix, fit_mk, mk_pull_transitions,
+##   mk_simulate_fluxes)
+##  But maybe it is not worth it and even hides the key message
+##  (cross-sectional can be thought of as a kind of phylog. data and can be
+##   analyzed with Mk)
+
+
+
 # adapted HyperTraPS plot for HyperHMM outputs
 plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = FALSE) {
   ### produce hypercube subgraph
@@ -209,6 +258,10 @@ plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = F
   return(this.plot)
 }
 
+
+## FIXME: why use rates = TRUE if it seems emphasis is on fluxes,
+##        (e.g., AIC.reduced) and rates can give impossible transitions
+##        (transitions from states that cannot be reached)
 plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
   trans.f$Change = ""
   for(i in 1:nrow(trans.f)) {
