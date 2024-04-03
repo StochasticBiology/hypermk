@@ -223,6 +223,18 @@ mk_cross_sectional = function(state.list, L) {
   return(cs.out)
 }
 
+
+## FIXME: it should be possible to write a wrapper for cross-sectional that
+##  takes a data set (as 0-index decimal or matrix of subjects-by-alterations)
+##  and a TRUE/FALSE for reversible and does all the rest
+##  (calls mk_cross_sectional, mk_index_matrix, fit_mk, mk_pull_transitions,
+##   mk_simulate_fluxes)
+##  But maybe it is not worth it and even hides the key message
+##  (cross-sectional can be thought of as a kind of phylog. data and can be
+##   analyzed with Mk)
+
+
+
 # adapted HyperTraPS plot for HyperHMM outputs
 plot.hypercube = function(trans.p, bigL, node.labels = TRUE, use.probability = FALSE) {
   ### produce hypercube subgraph
