@@ -92,7 +92,12 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
   } else {
     # loop over transitions
     for(i in 1:(nrow(m)-1)) {
-      for(j in (i+1):ncol(m)) {
+      ## FIXME: reversible case returns -1 for self -> self transitions
+      ## but irreversible doesn't.
+      ## If next loop went from i:ncol(m) it would also return -1 in self-transitions,
+      ## like reversible case.
+      ## Alternatively, for reversible, delete all rows where From == To.
+      for(j in (i+1):ncol(m)) { 
         if(m[i,j] != 0) {
           mk_df = rbind(mk_df, data.frame(From=i-1, To=j-1, Rate=m[i,j]/sum(m[i,(i+1):ncol(m)])))
         }
