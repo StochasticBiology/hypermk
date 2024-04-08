@@ -185,7 +185,10 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       
       # if we have precise observations, construct set of tip states
       if(expt == "single" | expt == "single.rev") { # fig-1.png 1, Figure 3 of current ms.
-        # assign feature barcodes to tree   
+        # assign feature barcodes to tree
+        ## FIXME: why not move this next line outside of the "if"?
+        ##        it is the same for the single, single.rev, and single.uncertain cases
+        ##        In this case, remember to delete it from the if(expt == "single.uncertain"), below
         my.tree$tip.label = x[1:length(my.tree$tip.label)]
         # convert binary tip labels into 1-indexed decimal state refs
         tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
@@ -203,6 +206,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # modelling uncertain observations, construct set of tip priors
       if(expt == "single.uncertain") { # fig-2.png; Figure 4 of current ms.
         # initialise with zero probability
+        ## FIXME: rm this line if we moved it out of the if, above.
         my.tree$tip.label = x[1:length(my.tree$tip.label)]
         tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
         my.tree2 = my.tree
@@ -212,9 +216,17 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
           this.ref = BinToDec(my.tree$tip.label[[i]])
           # convert into 1-indexed decimal state refs for priors
           tip.priors[i,this.ref+1] = 1
+          ## FIXME: in the ms., it is half of the observations
+          ##        but would it make sense to set, right after
+          ##                if(expt == "single.uncertain")
+          ##          fraction_unknwon = 0.5  ## half in the paper
+          ##        and use here
+          ##          if(runif(1) < fraction_unknown)
           if(runif(1) < 0.5) {
             # otherwise, allow another random state to be compatible with this observation
             # 0-indexed decimal state refs
+            ## FIXME: would it be clearer to sample from the set of possible states?
+            ##        other.ref = sample(0:(2**L-1), size = 1)
             other.ref = round(runif(1, min=0, max=2**L-1))
             # convert into 1-indexed decimal state refs for priors
             tip.priors[i,other.ref+1] = 1
@@ -226,6 +238,13 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         my.pruned = my.tree
         data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
         data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
+        
+        ## FIXME
+        ## tip.priors, for the uncertain cases, will have two entries with
+        ## a value of 1. I understand that is OK, since tip_priors are,
+        ## as per the help of castor::mk_fit, likelihoods. However,
+        ## why not set each of the two entries to 0.5? Something like
+        ## tip.priors = tip.priors/rowSums(tip.priors)?
       }
     }
     
