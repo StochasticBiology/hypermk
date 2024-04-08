@@ -75,13 +75,13 @@ g.rev.flux = plot.hypercube2(ov.rev.df[ov.rev.df$Flux > flux.threshold,], L) +
 flux.threshold.pmax = 0.1
 flux.threshold = flux.threshold.pmax*max(ov.irrev.df$Flux)
 
-# plot graph without pruning by flux
+# plot graph without thresholding by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="irreversible",]
 t.str = titlestr(expt, "irrev fit", mk.stats)
 g.irrev = plot.hypercube2(ov.irrev.df, L, rates=TRUE) +
   ggtitle(t.str)
 
-# plot graph with pruning by flux 
+# plot graph with thresholding by flux 
 g.irrev.flux = plot.hypercube2(ov.irrev.df[ov.irrev.df$Flux > flux.threshold,], L) +
   ggtitle(t.str) 
 
