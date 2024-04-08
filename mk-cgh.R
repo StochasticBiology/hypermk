@@ -13,6 +13,10 @@ for(i in 1:L) {
 }
 # 0-indexed decimal state representation
 ov.states = rowSums(ov.reduced)
+## FIXME: would it be clearer to do
+## ov.states = apply(ov.table[, 1:L], 1, BinToDec)
+
+
 # reconstruct barcodes from 0-indexed decimals
 barcodes = unlist(lapply(ov.states, DecToBin, L))
 
