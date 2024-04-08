@@ -26,6 +26,8 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # instead we construct a tree with a root and two tips, one of which is specified by our observation
       # and the other is completely ambiguous (uniform prior over all states)
       my.tree = ape::stree(2)
+      # using my.pruned (identical to my.tree in several, but not all, examples)
+      # allows us to use the exact same call to castor::fit_mk below
       my.pruned = my.tree
       
       # the tip prior matrix
@@ -141,7 +143,10 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
       my.tree$node.label = as.character(1:my.tree$Nnode)
       tree.labels = c(my.tree$tip.label, my.tree$node.label)
-      
+
+      # generate state for all nodes traversing tree breadth-first
+      # and setting the state of the child nodes according to
+      # accumulation (and, if reversible, loss.rate) and branch length
       my.root = phangorn::getRoot(my.tree)
       to.do = c(my.root)
       # initialise state list
@@ -161,9 +166,12 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
             # construct state for this child based on its parent
             x[[this.child]] = x[[i]]
             # find leftmost zero in current state, and change with some probability
+            # recall dynamics here are 00000 -> 10000 -> 11000 -> 11100 -> 11110 -> 11111
+            ## (see first paragraph of section "Synthetic case studies")
             ref = which(x[[this.child]] == 0)[1]
             if(runif(1) < accumulation.rate*this.branch.length) { x[[this.child]][ref] = 1 } 
-            # in the reversible case, allow the leftmost feature to revert with some probability
+            # in the reversible case, allow the leftmost feature ("first feature" in the ms.:
+            # second paragraph of "Synthetic case studies") to revert with some probability
             if(expt == "single.rev") {
               if(runif(1) < loss.rate*this.branch.length) { x[[this.child]][1] = 0 }
             }
