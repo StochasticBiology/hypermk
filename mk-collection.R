@@ -138,7 +138,10 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         accumulation.rate = 1.2
       }
       loss.rate = 1
-      
+
+      ## FIXME: what is "n" in "2^n" nodes? 2^L = 32.
+      ##        I think this should be reworded as
+      ##        create random phylogeny with tree.size nodes from birth-death process parameterised as above
       # create random phylogeny with 2^n nodes from birth-death process parameterised as above
       my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
       my.tree$node.label = as.character(1:my.tree$Nnode)
