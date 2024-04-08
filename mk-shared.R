@@ -14,6 +14,7 @@ library(ggtree)
 ## ape:
 ##     rphylo
 ##     stree
+##     drop.tip
 
 ## phangorn:
 ##     getRoot

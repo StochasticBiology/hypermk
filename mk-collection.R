@@ -234,7 +234,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
             ref = which(my.data$Isolate == my.tree$tip.label[i])
             if(length(ref) != 1) { tips.togo = c(tips.togo, i) }
         }
-        my.pruned = drop.tip(my.tree, tips.togo)
+        my.pruned = ape::drop.tip(my.tree, tips.togo)
         
         # assign tip states based on data set
         tip.states = c()
