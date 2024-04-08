@@ -10,6 +10,18 @@ library(stringr)
 library(ggpubr)
 library(ggtree)
 
+## Functions from the above packages called explicitly 
+## ape:
+##     rphylo
+##     stree
+
+## phangorn:
+##     getRoot
+
+## castor:
+##     fit_mk
+
+
 # binary to decimal function
 BinToDec <- function(x) {
   sum(2^(which(rev(unlist(strsplit(as.character(x), "")) == 1))-1))

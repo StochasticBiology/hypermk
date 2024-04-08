@@ -25,7 +25,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # but this seems to challenge the numerics of the fitting code
       # instead we construct a tree with a root and two tips, one of which is specified by our observation
       # and the other is completely ambiguous (uniform prior over all states)
-      my.tree = stree(2)
+      my.tree = ape::stree(2)
       my.pruned = my.tree
       
       # the tip prior matrix
@@ -45,7 +45,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       L = 3
       
       # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(stree(2), stree(2), stree(2))
+      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2))
       my.pruned = my.tree
       # example set of tip states
       # 1-indexed decimal states
@@ -83,7 +83,8 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       L = 4
       
       # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(stree(2), stree(2), stree(2), stree(2), stree(2), stree(2))
+      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2),
+                     ape::stree(2), ape::stree(2), ape::stree(2))
       my.pruned = my.tree
       # example set of tip states
       # 1-indexed decimal states
