@@ -86,12 +86,15 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       zero.mat[2,] = 1/(2**L)
       tip.priors = list(zero.mat, zero.mat, zero.mat, zero.mat, zero.mat, zero.mat)
       # enforce deterministic prior for each cross-sectional observation
+      # (deterministic prior is placed on the first tip ---uniform prior
+      # was place above on the second tip)
       for(i in 1:length(tip.states)) {
         tip.priors[[i]][1,tip.states[i]] = 1
       }
       
       # record feature sets
       # get barcodes from (converted) 0-indexed decimal states
+      # (barcodes are not used for analysis per se, but for plots)
       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
       barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
       
