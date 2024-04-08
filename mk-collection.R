@@ -16,14 +16,18 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
     
     # cross-sectional data, a single sample
     if(expt == "cross.sectional.single") {
-      # Not shown in figures
+      # A single cross-sectional observation with binary genotype 101
+      # (0-indexed decimal: 5).
+      # Not shown in figures in the paper.
       L = 3
       
       # to deal with cross-sectional data we could in principle construct a tree with just a root and a single tip
       # but this seems to challenge the numerics of the fitting code
       # instead we construct a tree with a root and two tips, one of which is specified by our observation
       # and the other is completely ambiguous (uniform prior over all states)
-      my.tree = stree(2)
+      my.tree = ape::stree(2)
+      # using my.pruned (identical to my.tree in several, but not all, examples)
+      # allows us to use the exact same call to castor::fit_mk below
       my.pruned = my.tree
       
       # the tip prior matrix
@@ -31,16 +35,19 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # uniform prior for tip 2
       tip.priors[2,] = 1/(2**L)
       # deterministic prior for tip 1
-      tip.priors[1,6] = 1
+      # 0-indexed decimal state is 5: only 6th column is a 1.
+      tip.priors[1,6] = 1 
     }
     
     # cross-sectional data, several samples (set up for L=3)
     if(expt == "cross.sectional.many") {
-      # Not shown in figures
+      # Three cross-sectional observations, with binary genotypes
+      # 001, 011, 111 (0-indexed decimal: 1, 3, 7, respectively)
+      # Not shown in figures in the paper.
       L = 3
       
       # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(stree(2), stree(2), stree(2))
+      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2))
       my.pruned = my.tree
       # example set of tip states
       # 1-indexed decimal states
@@ -52,11 +59,14 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       tip.priors = list(zero.mat, zero.mat, zero.mat)
       # enforce deterministic prior for each cross-sectional observation
       for(i in 1:length(tip.states)) {
+        # 0-indexed decimal states of observations are 1, 3, 7:
+        # columns 2, 4, 8, of tip.priors 1, 2, 3, are set to 1; the rest are left at 0.
         tip.priors[[i]][1,tip.states[i]] = 1
       }
       
       # record feature sets
       # get barcodes from (converted) 0-indexed decimal states
+      # (barcodes are not used for analysis per se, but for plots)
       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
       barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
       
@@ -75,10 +85,14 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       L = 4
       
       # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(stree(2), stree(2), stree(2), stree(2), stree(2), stree(2))
+      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2),
+                     ape::stree(2), ape::stree(2), ape::stree(2))
       my.pruned = my.tree
       # example set of tip states
       # 1-indexed decimal states
+      # binary genotypes are
+      # 0001, 0011, 0111,  (0-indexed decimal: 1, 3, 7)
+      # 1000, 1100, 1110   (0-indexed decimal: 8, 12, 14)
       tip.states = c(1, 3, 7, 8, 12, 14)+1
       
       # initialise prior matrix for each tree with uniform prior over second tips
@@ -86,12 +100,15 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       zero.mat[2,] = 1/(2**L)
       tip.priors = list(zero.mat, zero.mat, zero.mat, zero.mat, zero.mat, zero.mat)
       # enforce deterministic prior for each cross-sectional observation
+      # (deterministic prior is placed on the first tip ---uniform prior
+      # was placed above on the second tip)
       for(i in 1:length(tip.states)) {
         tip.priors[[i]][1,tip.states[i]] = 1
       }
       
       # record feature sets
       # get barcodes from (converted) 0-indexed decimal states
+      # (barcodes are not used for analysis per se, but for plots)
       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
       barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
       
@@ -121,12 +138,18 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         accumulation.rate = 1.2
       }
       loss.rate = 1
-      
+
+      ## FIXME: what is "n" in "2^n" nodes? 2^L = 32.
+      ##        I think this should be reworded as
+      ##        create random phylogeny with tree.size nodes from birth-death process parameterised as above
       # create random phylogeny with 2^n nodes from birth-death process parameterised as above
       my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
       my.tree$node.label = as.character(1:my.tree$Nnode)
       tree.labels = c(my.tree$tip.label, my.tree$node.label)
-      
+
+      # generate state for all nodes traversing tree breadth-first
+      # and setting the state of the child nodes according to
+      # accumulation (and, if reversible, loss.rate) and branch length
       my.root = phangorn::getRoot(my.tree)
       to.do = c(my.root)
       # initialise state list
@@ -146,9 +169,12 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
             # construct state for this child based on its parent
             x[[this.child]] = x[[i]]
             # find leftmost zero in current state, and change with some probability
+            # recall dynamics here are 00000 -> 10000 -> 11000 -> 11100 -> 11110 -> 11111
+            ## (see first paragraph of section "Synthetic case studies")
             ref = which(x[[this.child]] == 0)[1]
             if(runif(1) < accumulation.rate*this.branch.length) { x[[this.child]][ref] = 1 } 
-            # in the reversible case, allow the leftmost feature to revert with some probability
+            # in the reversible case, allow the leftmost feature ("first feature" in the ms.:
+            # second paragraph of "Synthetic case studies") to revert with some probability
             if(expt == "single.rev") {
               if(runif(1) < loss.rate*this.branch.length) { x[[this.child]][1] = 0 }
             }
@@ -162,7 +188,10 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       
       # if we have precise observations, construct set of tip states
       if(expt == "single" | expt == "single.rev") { # fig-1.png 1, Figure 3 of current ms.
-        # assign feature barcodes to tree   
+        # assign feature barcodes to tree
+        ## FIXME: why not move this next line outside of the "if"?
+        ##        it is the same for the single, single.rev, and single.uncertain cases
+        ##        In this case, remember to delete it from the if(expt == "single.uncertain"), below
         my.tree$tip.label = x[1:length(my.tree$tip.label)]
         # convert binary tip labels into 1-indexed decimal state refs
         tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
@@ -180,6 +209,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       # modelling uncertain observations, construct set of tip priors
       if(expt == "single.uncertain") { # fig-2.png; Figure 4 of current ms.
         # initialise with zero probability
+        ## FIXME: rm this line if we moved it out of the if, above.
         my.tree$tip.label = x[1:length(my.tree$tip.label)]
         tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
         my.tree2 = my.tree
@@ -189,9 +219,17 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
           this.ref = BinToDec(my.tree$tip.label[[i]])
           # convert into 1-indexed decimal state refs for priors
           tip.priors[i,this.ref+1] = 1
+          ## FIXME: in the ms., it is half of the observations
+          ##        but would it make sense to set, right after
+          ##                if(expt == "single.uncertain")
+          ##          fraction_unknwon = 0.5  ## half in the paper
+          ##        and use here
+          ##          if(runif(1) < fraction_unknown)
           if(runif(1) < 0.5) {
             # otherwise, allow another random state to be compatible with this observation
             # 0-indexed decimal state refs
+            ## FIXME: would it be clearer to sample from the set of possible states?
+            ##        other.ref = sample(0:(2**L-1), size = 1)
             other.ref = round(runif(1, min=0, max=2**L-1))
             # convert into 1-indexed decimal state refs for priors
             tip.priors[i,other.ref+1] = 1
@@ -203,6 +241,13 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         my.pruned = my.tree
         data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
         data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
+        
+        ## FIXME
+        ## tip.priors, for the uncertain cases, will have two entries with
+        ## a value of 1. I understand that is OK, since tip_priors are,
+        ## as per the help of castor::mk_fit, likelihoods. However,
+        ## why not set each of the two entries to 0.5? Something like
+        ## tip.priors = tip.priors/rowSums(tip.priors)?
       }
     }
     
@@ -219,7 +264,7 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
             ref = which(my.data$Isolate == my.tree$tip.label[i])
             if(length(ref) != 1) { tips.togo = c(tips.togo, i) }
         }
-        my.pruned = drop.tip(my.tree, tips.togo)
+        my.pruned = ape::drop.tip(my.tree, tips.togo)
         
         # assign tip states based on data set
         tip.states = c()
