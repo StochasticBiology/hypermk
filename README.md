@@ -14,6 +14,8 @@ Contents
 * `mk-collection.R` creates a set of synthetic examples and demonstrates inference using HyperMk.
 * `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation.
 * `mk-cgh.R` analyses an ovarian cancer dataset.
+* `mk-verbose-cross-sectional-examples.R` contains small, heavily commented
+  cross-sectional examples.
 
 `Data` contains data on drug resistance evolution in tuberculosis from [4], and from the ovarian cancer CGH study [5], which are used as case studies.
 
