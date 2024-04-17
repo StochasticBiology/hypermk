@@ -83,7 +83,7 @@ setup.data = function(expt) {
     birth.rate = 1
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
-    accumulation.rate = 1.2
+    accumulation.rate = 1
     loss.rate = 1
     
     # create random phylogeny with tree.size nodes from birth-death process parameterised as above
@@ -270,7 +270,8 @@ parallel.fn = function(fork) {
   print("reversible")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
                             use.priors, dset$tips, 
-                            reversible = TRUE)
+                            reversible = TRUE,
+                            optim_max_iterations = 2000)
   
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
   return(l.return)
