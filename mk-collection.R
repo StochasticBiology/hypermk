@@ -9,109 +9,57 @@ expt.set = c("single", "single.rev", # fig-1.png; Figure 3 of current ms.
              "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
              "TB") # fig-3.png
 # these simple test cases aren't included in the manuscript but can be used for debugging -- uncomment for this
-# expt.set = c("cross.sectional.single", "cross.sectional.many", expt.set) 
+expt.set = c("cross.sectional.single", "cross.sectional.many", expt.set) 
+
+res.set = list()
 
 for(expt in expt.set) {
     print(expt)
     set.seed(1)
     
-    # cross-sectional data, a single sample
-    if(expt == "cross.sectional.single") {
-      # A single cross-sectional observation with binary genotype 101
-      # (0-indexed decimal: 5).
-      # Not shown in figures in the paper.
-      L = 3
-      
-      # to deal with cross-sectional data we could in principle construct a tree with just a root and a single tip
-      # but this seems to challenge the numerics of the fitting code
-      # instead we construct a tree with a root and two tips, one of which is specified by our observation
-      # and the other is completely ambiguous (uniform prior over all states)
-      my.tree = ape::stree(2)
-      # using my.pruned (identical to my.tree in several, but not all, examples)
-      # allows us to use the exact same call to castor::fit_mk below
-      my.pruned = my.tree
-      
-      # the tip prior matrix
-      tip.priors = matrix(0, nrow=2, ncol=2**L)
-      # uniform prior for tip 2
-      tip.priors[2,] = 1/(2**L)
-      # deterministic prior for tip 1
-      # 0-indexed decimal state is 5: only 6th column is a 1.
-      tip.priors[1,6] = 1 
-    }
-    
-    # cross-sectional data, several samples (set up for L=3)
-    if(expt == "cross.sectional.many") {
-      # Three cross-sectional observations, with binary genotypes
-      # 001, 011, 111 (0-indexed decimal: 1, 3, 7, respectively)
-      # Not shown in figures in the paper.
-      L = 3
-      
-      # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2))
-      my.pruned = my.tree
-      # example set of tip states
-      # 1-indexed decimal states
-      tip.states = c(1, 3, 7)+1
-      
-      # initialise prior matrix for each tree with uniform prior over second tips
-      zero.mat = matrix(0, nrow=2, ncol=2**L)
-      zero.mat[2,] = 1/(2**L)
-      tip.priors = list(zero.mat, zero.mat, zero.mat)
-      # enforce deterministic prior for each cross-sectional observation
-      for(i in 1:length(tip.states)) {
-        # 0-indexed decimal states of observations are 1, 3, 7:
-        # columns 2, 4, 8, of tip.priors 1, 2, 3, are set to 1; the rest are left at 0.
-        tip.priors[[i]][1,tip.states[i]] = 1
+    # cross-sectional cases -- use the mk_cross_sectional function to get a set of trees and tip priors for a given matrix
+    if(expt == "cross.sectional.single" | 
+       expt == "cross.sectional.many" | 
+       expt == "cross.sectional.cross") {
+      if(expt == "cross.sectional.single") {
+        # A single cross-sectional observation with binary genotype 101
+        # (0-indexed decimal: 5).
+        # Not shown in figures in the paper.
+        L = 3
+        m = matrix(c(1,0,1), ncol=L, byrow=TRUE)
       }
+      if(expt == "cross.sectional.many") {
+        # Three cross-sectional observations, with binary genotypes
+        # 001, 011, 111 (0-indexed decimal: 1, 3, 7, respectively)
+        # Not shown in figures in the paper.
+        L = 3
+        m = matrix(c(0,0,1,
+                     0,1,1,
+                     1,1,1), ncol=L, byrow = TRUE)
+      }
+      if(expt == "cross.sectional.cross") {
+        # cross-sectional data, supporting two competing pathways (set up for L=3)
+        # fig-2.png; Figure 4 of current ms
+        L = 4
+        
+        m = matrix(c(0,0,0,1,
+                     0,0,1,1,
+                     0,1,1,1,
+                     1,0,0,0,
+                     1,1,0,0,
+                     1,1,1,0), ncol=L, byrow=TRUE)
+      }
+      
+      cs.data = mk_cross_sectional(m, L)
+      
+      my.pruned = cs.data$tree
+      tip.priors = cs.data$tips
       
       # record feature sets
       # get barcodes from (converted) 0-indexed decimal states
       # (barcodes are not used for analysis per se, but for plots)
+      tip.states = apply(m, 1, BinToDec)+1
       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
-      barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
-      
-      # construct tables of observed barcodes and their decimals in the dataset  
-      b.stats = as.data.frame(table(barcodes))
-      data.plot[[expt]] = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
-        theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
-        xlab("Observations") + ylab("Count") +
-        scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
-      
-    }
-    
-    # cross-sectional data, supporting two competing pathways (set up for L=3)
-    if(expt == "cross.sectional.cross") {
-      # fig-2.png; Figure 4 of current ms
-      L = 4
-      
-      # see comment above. now we construct a list of 2-tip trees, one for each observation
-      my.tree = list(ape::stree(2), ape::stree(2), ape::stree(2),
-                     ape::stree(2), ape::stree(2), ape::stree(2))
-      my.pruned = my.tree
-      # example set of tip states
-      # 1-indexed decimal states
-      # binary genotypes are
-      # 0001, 0011, 0111,  (0-indexed decimal: 1, 3, 7)
-      # 1000, 1100, 1110   (0-indexed decimal: 8, 12, 14)
-      tip.states = c(1, 3, 7, 8, 12, 14)+1
-      
-      # initialise prior matrix for each tree with uniform prior over second tips
-      zero.mat = matrix(0, nrow=2, ncol=2**L)
-      zero.mat[2,] = 1/(2**L)
-      tip.priors = list(zero.mat, zero.mat, zero.mat, zero.mat, zero.mat, zero.mat)
-      # enforce deterministic prior for each cross-sectional observation
-      # (deterministic prior is placed on the first tip ---uniform prior
-      # was placed above on the second tip)
-      for(i in 1:length(tip.states)) {
-        tip.priors[[i]][1,tip.states[i]] = 1
-      }
-      
-      # record feature sets
-      # get barcodes from (converted) 0-indexed decimal states
-      # (barcodes are not used for analysis per se, but for plots)
-      barcodes = unlist(lapply(tip.states-1, DecToBin, L))
-      barcodes.numeric = matrix(unlist(lapply(tip.states-1, DecToBinV, L)), ncol=L)
       
       # construct tables of observed barcodes and their decimals in the dataset  
       b.stats = as.data.frame(table(barcodes))
@@ -282,6 +230,7 @@ for(expt in expt.set) {
         print("doing irreversible model fit")
         fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
                                          tip_priors=tip.priors, 
+                                         optim_algorithm = "optim",
                                          rate_model=index_matrix_irrev, 
                                          root_prior=c(1,rep(0, 2**L-1)))
         
@@ -290,6 +239,7 @@ for(expt in expt.set) {
       # otherwise we have precisely specified tip states
       fitted_mk.irrev = castor::fit_mk(my.pruned, 2**L, 
                                        tip_states=tip.states, 
+                                       optim_algorithm="optim",
                                        rate_model=index_matrix_irrev, 
                                        root_prior=c(1,rep(0, 2**L-1)))
     }
@@ -312,6 +262,7 @@ for(expt in expt.set) {
       print("doing reversible model fit")
       fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                      tip_priors=tip.priors, 
+                                     optim_algorithm="optim",
                                      rate_model=index_matrix_rev, 
                                      root_prior=c(1,rep(0, 2**L-1)))
       
@@ -320,9 +271,13 @@ for(expt in expt.set) {
       # otherwise we have precisely specified tip states
       fitted_mk.rev = castor::fit_mk(my.pruned, 2**L, 
                                      tip_states=tip.states, 
+                                     optim_algorithm="optim",
                                      rate_model=index_matrix_rev, 
                                      root_prior=c(1,rep(0, 2**L-1)))
     }
+    
+    res.set[[length(res.set)+1]] = fitted_mk.irrev
+    res.set[[length(res.set)+1]] = fitted_mk.rev
     
     # convert inferred rate matrix to transition set
     mk_df.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
