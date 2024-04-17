@@ -133,12 +133,8 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
 ## - if reversible = FALSE and any non-zero lower-triangular: stop
 ## - if reversible = TRUE  and no  non-zero lower-triangular: give warning
 
-
-mk_simulate_fluxes = function(fit.mk, reversible=TRUE) {
+mk_simulate_fluxes = function(fit.mk, L, reversible=TRUE, nwalker = 10000) {
   # to get flux matrix we'll simulate random walkers on the transition matrix
-  nwalker = 10000
-  threshold = nwalker*(2*L)/10000
-  
   if(reversible == TRUE) {
     # set up data frame containing transitions and fluxes
     mk.rev.df = mk_pull_transitions(fit.mk, reversible=TRUE)

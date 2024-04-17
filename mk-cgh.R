@@ -37,8 +37,8 @@ ov.irrev = mk_pull_transitions(fitted_mk.irrev, reversible = FALSE)
 ov.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
 
 # set up data frame containing transitions and fluxes
-ov.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, reversible = FALSE)
-ov.rev.df = mk_simulate_fluxes(fitted_mk.rev, reversible = TRUE)
+ov.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, L, reversible = FALSE)
+ov.rev.df = mk_simulate_fluxes(fitted_mk.rev, L, reversible = TRUE)
 
 ov.res.df = data.frame()
 ov.res.df = rbind(ov.res.df, data.frame(Experiment = "ovarian", 

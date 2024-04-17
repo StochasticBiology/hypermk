@@ -328,8 +328,8 @@ for(expt in expt.set) {
     mk_df.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
     
     # set up data frame containing transitions and fluxes
-    mk.rev.df = mk_simulate_fluxes(fitted_mk.rev, reversible = TRUE)
-    mk.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, reversible = TRUE)
+    mk.rev.df = mk_simulate_fluxes(fitted_mk.rev, L, reversible = TRUE)
+    mk.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, L, reversible = TRUE)
     
     mk.rev.df$Experiment = expt
     mk.rev.df$Fit = "reversible"
