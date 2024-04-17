@@ -48,19 +48,10 @@ DecToBinV <- function(x, len) {
   return(s)
 }
 
-## FIXME: should argument fit be fit = c("rev fit", "irrev fit")
-##   and then, inside the function, first line
-##   fit <- match.arg(fit)
-##   so that anything not "rev fit" "irrev fit" is caught as an error?
-##   I passed something very similar to "rev fit" and was getting "Irreversible"
-
 # function to create a plot label given some statistics and labels
-titlestr = function(expt, fit, stats.df) {
-  ## FIXME: this first t.str I think is dead code. Can it be removed?
-  t.str = paste(c(expt, ", ", fit, ", AIC ", round(stats.df$AIC, digits=2), 
-                  " or simplified ", round(stats.df$AIC.reduced, digits=2)), 
-                collapse="")
-  if(fit == "rev fit") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
+titlestr = function(expt, fit = c("rev", "irrev"), stats.df) {
+  fit = match.arg(fit)
+  if(fit == "rev") { lead.str = "Reversible" } else {lead.str = "Irreversible"}
   t.str = paste(c(lead.str, " fit, simplified AIC ~ ", round(stats.df$AIC.reduced, digits=2), 
                   " (full ", round(stats.df$AIC, digits=2), ")"),
                 collapse = "")
@@ -137,82 +128,71 @@ mk_pull_transitions = function(fit.mk, reversible=TRUE) {
 }
 
 ## FIXME: mk_pull_transitions has a single function, with argument reversible.
-## Here, there are two functions. This seems slightly inconsistent.
-## The simplest approach to make them consistent would be
 
-## mk_simulate_fluxes <- function(x, reversible = TRUE) {
-##   if (reversible) {
-##     return(mk_simulate_fluxes_reversible(x))
-##   } else {
-##     return(mk_simulate_fluxes_irreversible(x))
-##   }
-## }
 ## In that function, it should be possible to add some minimal error checking
 ## - if reversible = FALSE and any non-zero lower-triangular: stop
 ## - if reversible = TRUE  and no  non-zero lower-triangular: give warning
 
 
-mk_simulate_fluxes_reversible = function(fitted_mk.rev) {
+mk_simulate_fluxes = function(fit.mk, reversible=TRUE) {
   # to get flux matrix we'll simulate random walkers on the transition matrix
   nwalker = 10000
   threshold = nwalker*(2*L)/10000
-
-  # set up data frame containing transitions and fluxes
-  mk.rev.df = mk_pull_transitions(fitted_mk.rev, reversible=TRUE)
-  mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
-  mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
-  mk.rev.df$Flux = 0
-  # simulate walkers starting from 0^L
-  for(walk in 1:nwalker) {
-    state = 0
-    for(t in 1:(2*L)) {
-      # pull row of transition matrix
-      trans = fitted_mk.rev$transition_matrix[state+1,]
-      trans[state+1] = 0
-      if(sum(trans)==0) {break}
-      # sample the next transition
-      this.out = sample(0:(2**L-1), size=1, prob=trans)
-      
-      ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
-      mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
-      state = this.out     
-    }
-  }
-  return(mk.rev.df)
-}
-
-mk_simulate_fluxes_irreversible = function(fitted_mk.irrev) {
-  nwalker = 10000
-  threshold = nwalker*(2*L)/10000
   
-  mk.irrev.df = mk_pull_transitions(fitted_mk.irrev, reversible=FALSE)
-  mk.irrev.df = mk.irrev.df[mk.irrev.df$From != mk.irrev.df$To,]
-  mk.irrev.df$Rate[mk.irrev.df$Rate == Inf] = 10*max(mk.irrev.df$Rate[mk.irrev.df$Rate != Inf])
-  mk.irrev.df$Flux = 0
-  # simulate walkers starting from 0^L
-  for(walk in 1:nwalker) {
-    state = 0
-    for(t in 1:L) {
-      # get possible out transitions
-      outs = which(mk.irrev.df$From == state)
-      if(length(outs) == 0) {
-        break
-      } else if(length(outs) == 1) {
-        this.out = outs[1]
-      } else {
-        # sample a possible out transition
-        this.out = sample(outs, size=1, prob=mk.irrev.df$Rate[outs])
+  if(reversible == TRUE) {
+    # set up data frame containing transitions and fluxes
+    mk.rev.df = mk_pull_transitions(fit.mk, reversible=TRUE)
+    mk.rev.df = mk.rev.df[mk.rev.df$From != mk.rev.df$To,]
+    mk.rev.df$Rate[mk.rev.df$Rate == Inf] = 10*max(mk.rev.df$Rate[mk.rev.df$Rate != Inf])
+    mk.rev.df$Flux = 0
+    # simulate walkers starting from 0^L
+    for(walk in 1:nwalker) {
+      state = 0
+      for(t in 1:(2*L)) {
+        # pull row of transition matrix
+        trans = fit.mk$transition_matrix[state+1,]
+        trans[state+1] = 0
+        if(sum(trans)==0) {break}
+        # sample the next transition
+        this.out = sample(0:(2**L-1), size=1, prob=trans)
+        
+        ref = which(mk.rev.df$From == state & mk.rev.df$To == this.out)
+        mk.rev.df$Flux[ref] = mk.rev.df$Flux[ref]+1
+        state = this.out     
       }
-      mk.irrev.df$Flux[this.out] = mk.irrev.df$Flux[this.out]+1
-      state = mk.irrev.df$To[this.out]     
     }
+    return(mk.rev.df)
   }
-  return(mk.irrev.df)
+  else {
+    
+    mk.irrev.df = mk_pull_transitions(fit.mk, reversible=FALSE)
+    mk.irrev.df = mk.irrev.df[mk.irrev.df$From != mk.irrev.df$To,]
+    mk.irrev.df$Rate[mk.irrev.df$Rate == Inf] = 10*max(mk.irrev.df$Rate[mk.irrev.df$Rate != Inf])
+    mk.irrev.df$Flux = 0
+    # simulate walkers starting from 0^L
+    for(walk in 1:nwalker) {
+      state = 0
+      for(t in 1:L) {
+        # get possible out transitions
+        outs = which(mk.irrev.df$From == state)
+        if(length(outs) == 0) {
+          break
+        } else if(length(outs) == 1) {
+          this.out = outs[1]
+        } else {
+          # sample a possible out transition
+          this.out = sample(outs, size=1, prob=mk.irrev.df$Rate[outs])
+        }
+        mk.irrev.df$Flux[this.out] = mk.irrev.df$Flux[this.out]+1
+        state = mk.irrev.df$To[this.out]     
+      }
+    }
+    return(mk.irrev.df)
+  }
 }
 
 # cast cross-sectional data into appropriate format for Mk model
-# FIXME: I think it should say "requires", not "accepts"
-# accepts 0-indexed, decimal state representation; indexes from 1 for Mk fit
+# requires 0-indexed, decimal state representation; indexes from 1 for Mk fit
 mk_cross_sectional = function(state.list, L) {
   my.tree = tip.priors = vector("list", length(state.list))
   base.tree = ape::stree(2, type = "star")

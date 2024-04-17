@@ -1,16 +1,17 @@
 # collection of HyperMk experiments
 
 source("mk-shared.R")
-# FIXME: "cross.sectional.single", and "cross.sectional.many" are
-#        not used anywhere?
+
 graph.df = res.df = b.df = i.df = data.frame()
 data.plot = data.plot.nb = list()
-for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
-              "single.uncertain", # fig-2.png; Figure 4 of current ms.
-              "cross.sectional.single", # Not shown in figures
-              "cross.sectional.many", # Not shown in figures
-              "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
-              "TB")) {
+expt.set = c("single", "single.rev", # fig-1.png; Figure 3 of current ms.
+             "single.uncertain", # fig-2.png; Figure 4 of current ms.
+             "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
+             "TB") # fig-3.png
+# these simple test cases aren't included in the manuscript but can be used for debugging -- uncomment for this
+# expt.set = c("cross.sectional.single", "cross.sectional.many", expt.set) 
+
+for(expt in expt.set) {
     print(expt)
     set.seed(1)
     
@@ -131,18 +132,10 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       birth.rate = 1
       death.rate = 0.1
       # accumulation rate for features (and loss rate, for reversible setup)
-      # FIXME: these rates are the same. What is the purpose of the if?
-      if(expt == "single.rev") {
-        accumulation.rate = 1.2
-      } else {
-        accumulation.rate = 1.2
-      }
+      accumulation.rate = 1.2
       loss.rate = 1
 
-      ## FIXME: what is "n" in "2^n" nodes? 2^L = 32.
-      ##        I think this should be reworded as
-      ##        create random phylogeny with tree.size nodes from birth-death process parameterised as above
-      # create random phylogeny with 2^n nodes from birth-death process parameterised as above
+      # create random phylogeny with tree.size nodes from birth-death process parameterised as above
       my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
       my.tree$node.label = as.character(1:my.tree$Nnode)
       tree.labels = c(my.tree$tip.label, my.tree$node.label)
@@ -185,14 +178,12 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         # update to-do list
         to.do = new.to.do
       }
-      
+
+      my.tree$tip.label = x[1:length(my.tree$tip.label)]
+              
       # if we have precise observations, construct set of tip states
       if(expt == "single" | expt == "single.rev") { # fig-1.png 1, Figure 3 of current ms.
         # assign feature barcodes to tree
-        ## FIXME: why not move this next line outside of the "if"?
-        ##        it is the same for the single, single.rev, and single.uncertain cases
-        ##        In this case, remember to delete it from the if(expt == "single.uncertain"), below
-        my.tree$tip.label = x[1:length(my.tree$tip.label)]
         # convert binary tip labels into 1-indexed decimal state refs
         tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
         my.tree2 = my.tree
@@ -208,9 +199,8 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
       
       # modelling uncertain observations, construct set of tip priors
       if(expt == "single.uncertain") { # fig-2.png; Figure 4 of current ms.
+        fraction_unknown = 0.5  # proportion of observations to make uncertain: 0.5 in the paper
         # initialise with zero probability
-        ## FIXME: rm this line if we moved it out of the if, above.
-        my.tree$tip.label = x[1:length(my.tree$tip.label)]
         tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
         my.tree2 = my.tree
         # loop through observations
@@ -219,20 +209,13 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
           this.ref = BinToDec(my.tree$tip.label[[i]])
           # convert into 1-indexed decimal state refs for priors
           tip.priors[i,this.ref+1] = 1
-          ## FIXME: in the ms., it is half of the observations
-          ##        but would it make sense to set, right after
-          ##                if(expt == "single.uncertain")
-          ##          fraction_unknwon = 0.5  ## half in the paper
-          ##        and use here
-          ##          if(runif(1) < fraction_unknown)
-          if(runif(1) < 0.5) {
+          if(runif(1) < fraction_unknown) {
             # otherwise, allow another random state to be compatible with this observation
             # 0-indexed decimal state refs
-            ## FIXME: would it be clearer to sample from the set of possible states?
-            ##        other.ref = sample(0:(2**L-1), size = 1)
-            other.ref = round(runif(1, min=0, max=2**L-1))
-            # convert into 1-indexed decimal state refs for priors
-            tip.priors[i,other.ref+1] = 1
+            other.ref = sample(0:(2**L-1), size = 1)
+            # convert into 1-indexed decimal state refs for priors, and split prior probability between original and new randomly selected state
+            tip.priors[i,this.ref+1] = 0.5
+            tip.priors[i,other.ref+1] = 0.5
             my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]], "/\n", DecToBin(other.ref, L), "?"), collapse="")
           } else {
             my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]]), collapse="")
@@ -241,13 +224,6 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
         my.pruned = my.tree
         data.plot[[expt]] = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
         data.plot.nb[[expt]] = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
-        
-        ## FIXME
-        ## tip.priors, for the uncertain cases, will have two entries with
-        ## a value of 1. I understand that is OK, since tip_priors are,
-        ## as per the help of castor::mk_fit, likelihoods. However,
-        ## why not set each of the two entries to 0.5? Something like
-        ## tip.priors = tip.priors/rowSums(tip.priors)?
       }
     }
     
@@ -352,8 +328,8 @@ for(expt in c( "single", "single.rev", # fig-1.png; Figure 3 of current ms.
     mk_df.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
     
     # set up data frame containing transitions and fluxes
-    mk.rev.df = mk_simulate_fluxes_reversible(fitted_mk.rev)
-    mk.irrev.df = mk_simulate_fluxes_irreversible(fitted_mk.irrev)
+    mk.rev.df = mk_simulate_fluxes(fitted_mk.rev, reversible = TRUE)
+    mk.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, reversible = TRUE)
     
     mk.rev.df$Experiment = expt
     mk.rev.df$Fit = "reversible"
@@ -382,14 +358,14 @@ expt = "single"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
@@ -397,14 +373,14 @@ expt = "single.rev"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
@@ -425,14 +401,14 @@ expt = "single.uncertain"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
@@ -441,14 +417,14 @@ expt = "cross.sectional.cross"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.3 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.4 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
@@ -469,14 +445,14 @@ expt = "TB"
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="irreversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="irreversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.1 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
 this.g.df = graph.df[graph.df$Experiment==expt & graph.df$Fit=="reversible",]
 mk.stats = res.df[res.df$Experiment==expt & res.df$Fit=="reversible",]
 flux.threshold = flux.threshold.pmax*max(this.g.df$Flux)
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.2 = plot.hypercube2(this.g.df[this.g.df$Flux > flux.threshold,], L) + 
   ggtitle(t.str) 
 
