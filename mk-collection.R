@@ -6,6 +6,7 @@ require(parallel)
 # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 # argument specifies the particular case to produce
 setup.data = function(expt) {
+  set.seed(1)
   
   # cross-sectional cases -- use the mk_cross_sectional function to get a set of trees and tip priors for a given matrix
   if(expt == "cross.sectional.single" | 
@@ -277,6 +278,13 @@ parallel.fn = function(fork) {
 
 # prepare three-panel results figure: data, irreversible fit, reversible fit
 results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
+  
+  if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
+    message("WARNING: irreversible fit didn't converge!")
+  }
+  if(combined.obj$mk.out.rev$fitted_mk$converged != TRUE) {
+    message("WARNING: reversible fit didn't converge!")
+  }
   
   graph.df.rev = combined.obj$mk.out.rev$mk_fluxes
   L = combined.obj$dset$L
