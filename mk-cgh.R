@@ -37,8 +37,8 @@ ov.irrev = mk_pull_transitions(fitted_mk.irrev, reversible = FALSE)
 ov.rev = mk_pull_transitions(fitted_mk.rev, reversible = TRUE)
 
 # set up data frame containing transitions and fluxes
-ov.irrev.df = mk_simulate_fluxes_irreversible(fitted_mk.irrev)
-ov.rev.df = mk_simulate_fluxes_reversible(fitted_mk.rev)
+ov.irrev.df = mk_simulate_fluxes(fitted_mk.irrev, reversible = FALSE)
+ov.rev.df = mk_simulate_fluxes(fitted_mk.rev, reversible = TRUE)
 
 ov.res.df = data.frame()
 ov.res.df = rbind(ov.res.df, data.frame(Experiment = "ovarian", 
@@ -53,7 +53,7 @@ ov.res.df = rbind(ov.res.df, data.frame(Experiment = "ovarian",
 
 # plot graph, without thresholding by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="reversible",]
-t.str = titlestr(expt, "rev fit", mk.stats)
+t.str = titlestr(expt, "rev", mk.stats)
 g.rev = plot.hypercube2(ov.rev.df, L, rates=TRUE) +
   ggtitle(t.str) 
 
@@ -69,7 +69,7 @@ flux.threshold = flux.threshold.pmax*max(ov.irrev.df$Flux)
 
 # plot graph without thresholding by flux
 mk.stats = ov.res.df[ov.res.df$Experiment==expt & ov.res.df$Fit=="irreversible",]
-t.str = titlestr(expt, "irrev fit", mk.stats)
+t.str = titlestr(expt, "irrev", mk.stats)
 g.irrev = plot.hypercube2(ov.irrev.df, L, rates=TRUE) +
   ggtitle(t.str)
 
