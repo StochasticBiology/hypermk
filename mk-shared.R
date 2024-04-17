@@ -189,7 +189,10 @@ mk_simulate_fluxes = function(fit.mk, L, reversible=TRUE, nwalker = 10000) {
 
 # cast cross-sectional data into appropriate format for Mk model
 # requires 0-indexed, decimal state representation; indexes from 1 for Mk fit
-mk_cross_sectional = function(state.list, L) {
+mk_cross_sectional = function(state.list, L, decimal.labels = FALSE) {
+  if(decimal.labels == FALSE) {
+    state.list = apply(state.list, 1, BinToDec)
+  }
   my.tree = tip.priors = vector("list", length(state.list))
   base.tree = ape::stree(2, type = "star")
   # initialise prior matrix for each tree with uniform prior over second tips
