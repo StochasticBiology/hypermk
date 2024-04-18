@@ -188,10 +188,13 @@ mk_simulate_fluxes = function(fit.mk, L, reversible=TRUE, nwalker = 10000) {
 }
 
 # cast cross-sectional data into appropriate format for Mk model
-# requires 0-indexed, decimal state representation; indexes from 1 for Mk fit
+# requires matrix of binary states or 1-indexed, decimal state representation; indexes from 1 for Mk fit
 mk_cross_sectional = function(state.list, L, decimal.labels = FALSE) {
   if(decimal.labels == FALSE) {
     state.list = apply(state.list, 1, BinToDec)
+    tip.states = state.list+1
+  } else {
+    tip.states = state.list
   }
   my.tree = tip.priors = vector("list", length(state.list))
   base.tree = ape::stree(2, type = "star")
@@ -203,9 +206,9 @@ mk_cross_sectional = function(state.list, L, decimal.labels = FALSE) {
     tip.priors[[i]] = zero.mat
   }
   # see comment above. now we construct a list of 2-tip trees, one for each observation
-  my.pruned = my.tree
+  mk.tree = my.tree
   # example set of tip states
-  tip.states = state.list+1
+ 
 
   # Minimal error checking
   if (any(tip.states > (2**L)))
@@ -217,8 +220,31 @@ mk_cross_sectional = function(state.list, L, decimal.labels = FALSE) {
   for(i in 1:length(tip.states)) {
     tip.priors[[i]][1,tip.states[i]] = 1
   }
-  cs.out = list(tree=my.pruned,
+  cs.out = list(tree=mk.tree,
                 tips=tip.priors)
+  return(cs.out)
+}
+
+# cast phylogeny + set of tip labels data into appropriate format for Mk model
+# requires matrix of binary states or 1-indexed, decimal state representation; indexes from 1 for Mk fit
+mk_phylogeny_precise = function(state.list, tree, L, decimal.labels = FALSE) {
+  if(decimal.labels == FALSE) {
+    state.list = apply(state.list, 1, BinToDec)
+    tip.states = state.list+1
+  } else {
+    tip.states = state.list
+  }
+  mk.tree = tree
+  mk.tree$tip.label = tip.states
+  
+  # Minimal error checking
+  if (any(tip.states > (2**L)))
+    stop("At least one tip state has a value outside of possible range: ",
+         "[0, (2**L) - 1]. \n",
+         "(state.list argument: 0-indexed decimal representation)")
+  
+  cs.out = list(tree=mk.tree,
+                tips=tip.states)
   return(cs.out)
 }
 

@@ -83,7 +83,7 @@ setup.data = function(expt) {
     birth.rate = 1
     death.rate = 0.1
     # accumulation rate for features (and loss rate, for reversible setup)
-    accumulation.rate = 1
+    accumulation.rate = 1.2
     loss.rate = 1
     
     # create random phylogeny with tree.size nodes from birth-death process parameterised as above
