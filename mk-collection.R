@@ -3,6 +3,11 @@
 source("mk-shared.R")
 require(parallel)
 
+# the longest case study here (TB) takes >1hr on a modern machine to fit one instance of the reversible model
+# using more trials increases the chance we find the global optimum, but will multiply this runtime
+# minimum value is 1 -- use this if computer time is limiting
+Ntrials = 5
+
 # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 # argument specifies the particular case to produce
 setup.data = function(expt) {
@@ -265,13 +270,15 @@ parallel.fn = function(fork) {
   print("irreversible")
   mk.out.irrev = mk.inference(dset$tree, dset$L, 
                               use.priors, dset$tips, 
-                              reversible = FALSE)
+                              reversible = FALSE,
+                              Ntrials = Ntrials)
   # reversible model fit
   print("reversible")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
                             use.priors, dset$tips, 
                             reversible = TRUE,
-                            optim_max_iterations = 2000)
+                            optim_max_iterations = 2000,
+                            Ntrials = Ntrials)
   
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
   return(l.return)

@@ -344,6 +344,10 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iter
                                Ntrials = Ntrials)
   }
   
+  if(fitted_mk$converged != TRUE) {
+    message("WARNING: Mk model fit didn't converge!")
+  }
+  
   # convert inferred rate matrix into transition set
   mk_df = mk_pull_transitions(fitted_mk, reversible = reversible)
   # and simulate fluxes through this transition set
