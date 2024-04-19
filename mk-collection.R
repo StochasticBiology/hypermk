@@ -74,6 +74,9 @@ setup.data = function(expt) {
       xlab("Observations") + ylab("Count") +
       scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1)) 
     data.plot.nb = ggplot() + geom_blank()
+
+    x.binary = m
+    x.decimal = apply(x.binary, 1, BinToDec) + 1
   }
   
   ####### random tree with random, single-pathway dynamics
@@ -155,6 +158,8 @@ setup.data = function(expt) {
       
       data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
       data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
+      x.decimal = tip.states
+      x.binary = do.call(rbind, my.tree$tip.label)
     }
     
     # modelling uncertain observations, construct set of tip priors
@@ -185,6 +190,11 @@ setup.data = function(expt) {
       mk.tree = my.tree
       data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
       data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
+
+      x.decimal = apply(tip.priors, 1, function(x) which(x > 0))
+      x.binary = lapply(x.decimal,
+                        function(x)
+                          lapply(x, function(v) DecToBinV(v - 1, L)))
     }
   }
   
@@ -222,21 +232,35 @@ setup.data = function(expt) {
     
     data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
     data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=1)
+
+    x.decimal = tip.states
+    x.binary = t(vapply(x.decimal,
+                        function(x) DecToBinV(x - 1, L), rep(0, L)))
   }
   
   # compile information into a return structure
   # for cross-sectional or uncertain data, we specify priors on tips
   # otherwise, we specify precise states
+  # For completeness, the original data are also returned
+  # in vector x.decimal (1-indexed decimal) and array x.binary
+  # (matrix of number of observations x L, with a 1 in altered positions);
+  # For "single.uncertain" lists are used; uncertain observations contain
+  # two elements (for x.decimal to decimal numbers, for x.binary two
+  # vectors of length L). x.decimal is the same as tip.states for
+  # single, single.rev, and TB.
+
   if(cross.sectional == TRUE | uncertain == TRUE) {
     l.return = list(tree = mk.tree, L = L, 
                     cross.sectional = cross.sectional, uncertain = uncertain,
                     tips = tip.priors,
-                    data.plot = data.plot, data.plot.nb = data.plot.nb)
+                    data.plot = data.plot, data.plot.nb = data.plot.nb,
+                    x.binary = x.binary, x.decimal = x.decimal)
   } else {
     l.return = list(tree = mk.tree, L = L, 
                     cross.sectional = cross.sectional, uncertain = uncertain,
                     tips = tip.states,
-                    data.plot = data.plot, data.plot.nb = data.plot.nb)
+                    data.plot = data.plot, data.plot.nb = data.plot.nb,
+                    x.binary = x.binary, x.decimal = x.decimal)
   }
   
   return(l.return)
