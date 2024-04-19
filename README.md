@@ -11,9 +11,8 @@ Contents
 ---
 
 * `mk-shared.R` contains a set of common functions for labelling and plotting, as well as for creating the matrices for specifying parameter forms for HyperMk
-* `mk-collection.R` creates a set of synthetic examples and demonstrates inference using HyperMk.
+* `mk-collection.R` creates a set of synthetic examples and demonstrates inference using HyperMk. Includes analysis of a cross-sectional ovarian cancer dataset and a phylogenetic TB dataset.
 * `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation.
-* `mk-cgh.R` analyses an ovarian cancer dataset.
 * `mk-verbose-cross-sectional-examples.R` contains small, heavily commented
   cross-sectional examples.
 
