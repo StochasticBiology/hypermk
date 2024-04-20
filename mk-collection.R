@@ -370,3 +370,58 @@ for(i in 1:nexpts) {
   dev.off()
 }
 
+
+##### If you only want to run a subset of the experiments
+##   Change the indices passed to argument fork in the call to
+##   parallelised runs.
+##   The map between experiments and indices can be seen in expt.set in
+##   parallel.fn
+##   1 -> cross.sectional.single
+##   2 -> cross.sectional.many
+##   3 -> single
+##   4 -> single.rev
+##   5 -> single.uncertain
+##   6 -> cross.sectional.cross
+##   7 -> TB
+##   8 -> ovarian
+
+## See the mapping as:
+## bpfn <- body(parallel.fn)
+## expt.set.values <- eval(bpfn[[grep("expt.set =", bpfn, fixed = TRUE)]][[3]])
+
+
+##  For example, to run cross.sectional.many and cross.sectional.cross do
+##  (code wrapped in FALSE to prevent automatic execution)
+
+if (FALSE) {
+  ## Convenience, to pass the experiment by name, and use it in
+  ## the figure
+  ## Get the value of expt.set in function parallel.fn
+  bpfn <- body(parallel.fn)
+  expt.set.values <- eval(bpfn[[grep("expt.set =", bpfn, fixed = TRUE)]][[3]])
+  the_expts <- setNames(seq_along(expt.set.values), expt.set.values)
+
+  ## Now, specify the experiments you want by name
+  these_expts <- c("cross.sectional.many", "cross.sectional.cross")
+
+
+  nexpts <- length(these_expts)
+  parallelised.runs <- mcmapply(parallel.fn,
+                                fork = the_expts[these_expts],
+                                SIMPLIFY = FALSE,
+                                mc.cores = min(detectCores(), nexpts))
+
+  pmaxs = c(0.03, 0.03, 0.05, 0.02, 0.02, 0.05, 0.05, 0.05)
+  obls = rep(FALSE, 8); obls[7] = TRUE
+  fig.list = list()
+  sf = 2
+
+  for(i in 1:nexpts) {
+    fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
+    # png(paste0("expt-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
+    png(paste0("expt-", these_expts[i], ".png"), width=1000*sf, height=350*sf, res=72*sf)
+    print(fig.list[[i]])
+    dev.off()
+  }
+
+}
