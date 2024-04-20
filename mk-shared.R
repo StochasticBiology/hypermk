@@ -313,7 +313,7 @@ plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
 # general wrapper function for HyperMk inference
 # takes tree, number of features, whether to use priors (vs specific states), tip labels (priors or states), and whether to run reversible model or not
 # returns the fitted model with summary dataframes of transitions and fluxes
-mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iterations = 200, Ntrials = 1, optim_algorithm = c("optim", "nlminb"))
+mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iterations = 200, Ntrials = 1, optim_algorithm = c("optim", "nlminb"), Nthreads = 1)
 {
   optim_algorithm = match.arg(optim_algorithm)
   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
@@ -333,7 +333,8 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iter
                                rate_model=index_matrix,
                                root_prior=c(1,rep(0, 2**L-1)),
                                optim_max_iterations = optim_max_iterations,
-                               Ntrials = Ntrials)
+                               Ntrials = Ntrials,
+                               Nthreads = Nthreads)
   } else {
     # specify precise states
     fitted_mk = castor::fit_mk(mk.tree, 2**L,
@@ -342,7 +343,8 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iter
                                rate_model=index_matrix,
                                root_prior=c(1,rep(0, 2**L-1)),
                                optim_max_iterations = optim_max_iterations,
-                               Ntrials = Ntrials)
+                               Ntrials = Ntrials,
+                               Nthreads = Nthreads)
   }
   
   if(fitted_mk$converged != TRUE) {

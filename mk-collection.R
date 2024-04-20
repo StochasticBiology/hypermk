@@ -8,6 +8,12 @@ require(parallel)
 # minimum value is 1 -- use this if computer time is limiting
 Ntrials = 5
 
+# If the computer has multiple cores, using Nthreads will decrease running time
+# when Ntrials > 1 (if Nthreads = Ntrials, running time will be about the same as
+## for Ntrials = 1). By default, set Nthreads to Ntrials, unless thee are fewer
+# cores
+Nthreads = min(Ntrials, parallel::detectCores() - 1)
+
 # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 # argument specifies the particular case to produce
 setup.data = function(expt) {
@@ -295,15 +301,17 @@ parallel.fn = function(fork) {
   mk.out.irrev = mk.inference(dset$tree, dset$L, 
                               use.priors, dset$tips, 
                               reversible = FALSE,
-                              Ntrials = Ntrials)
+                              Ntrials = Ntrials,
+                              Nthreads = Nthreads)
   # reversible model fit
   print("reversible")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
                             use.priors, dset$tips, 
                             reversible = TRUE,
                             optim_max_iterations = 2000,
-                            Ntrials = Ntrials)
-  
+                            Ntrials = Ntrials,
+                            Nthreads = Nthreads)
+
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
   return(l.return)
 }
