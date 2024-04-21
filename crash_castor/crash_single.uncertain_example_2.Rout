@@ -1,0 +1,103 @@
+>
+>
+> this_seed <- 50001
+> cat("\n Doing this_seed = ", this_seed, "\n")
+
+ Doing this_seed =  50001
+> parallel.fn(5)
+
+  Insider parallel.fn. Doing expt =  single.uncertain
+
+        inside the if single.uncertain with seed  50001
+[1] "irreversible"
+
+        inside irreversible with seed  50001
+Checking input variables..
+  First guess rate: 27.323
+Generating 4000 random parameter starts and selecting the most promising ones..
+  Trial -1: loglikelihood -3821.540769
+  Trial -1: loglikelihood -3821.538092
+  Trial -1: loglikelihood -3821.538293
+  Trial -1: loglikelihood -3821.543195
+  Trial -1: loglikelihood -5508.188967
+  Trial -1: loglikelihood -3769.553046
+
+  (...)
+
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -3702.753152
+  Trial -1: loglikelihood -2244.392856
+  Trial -1: loglikelihood -3923.998119
+  Trial -1: loglikelihood -5173.181518
+  Trial -1: loglikelihood -2149.119508
+  Trial -1: loglikelihood -2819.517139
+  Trial -1: loglikelihood -4331.950602
+  Trial -1: loglikelihood -4105.248313
+  Trial -1: loglikelihood -5385.302014
+  Trial -1: loglikelihood -2899.809493
+  Trial -1: loglikelihood -3076.5829
+  Trial -1: loglikelihood -4657.9741
+  Trial -1: loglikelihood -7413.714347
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -1756.935168
+
+  (...)
+
+  Trial -1: loglikelihood -4313.481648
+  Trial -1: loglikelihood -1960.526313
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -8690.829886
+
+  (...)
+
+  Trial -1: loglikelihood -2684.337015
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -3431.599723
+  Trial -1: loglikelihood -1843.237115
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -5746.549213
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -1164.207597
+  Trial -1: loglikelihood -3870.267593
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -6029.000427
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -1575.310987
+  Trial -1: loglikelihood -2523.486217
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -6670.29669
+  Trial -1: loglikelihood -1358.940303
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -2711.03459
+  Trial -1: loglikelihood -1184.63977
+
+  (...)
+
+  Trial -1: loglikelihood -951.0200867
+  Trial -1: loglikelihood -1066.440686
+  Trial -1, tree 1 (64 tips): Model evaluation failed:
+  Trial -1: loglikelihood -9676.771895
+Fitting 80 free parameters (5 trials)..
+  Trial 1: loglikelihood -3821.54011
+  Trial 1: loglikelihood -3821.54011
+  Trial 1: loglikelihood -3821.54011
+
+  (...)
+
+  Trial 1: loglikelihood -79.97312336
+  Trial 1: loglikelihood -80.26461827
+  Trial 1: loglikelihood -79.97312251
+  Trial 1: Final loglikelihood -79.97312251, converged = 0
+  Trial 2: loglikelihood -142.6390051
+  Trial 2: loglikelihood -142.6392306
+
+  (...)
+
+  Trial 2: loglikelihood -158.9692368
+  Trial 2: loglikelihood -141.9967136
+  Trial 2, tree 1 (64 tips): Model evaluation failed:
+Error in stats::optim(start_dense_rates/rate_scale, function(x) objective_function(x *  :
+  L-BFGS-B needs finite values of 'fn'
+Calls: parallel.fn ... mk.inference -> <Anonymous> -> fit_single_trial -> <Anonymous>
+Execution halted

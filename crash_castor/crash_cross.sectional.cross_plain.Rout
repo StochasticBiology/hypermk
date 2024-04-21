@@ -1,0 +1,4636 @@
+
+R version 4.3.3 Patched (2024-02-29 r86099) -- "Angel Food Cake"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ## Using optim as optimizer, this crashes castor in my machine.
+> ## It is an attempt to run cross.sectional.cross with larger
+> ## sample size (i.e. replicating some rows of the m matrix).
+> 
+> ## When using Nthreads > 1, the immediate error comes from parallel:
+> ## Error in fits[[trial]]$LL : $ operator is invalid for atomic vectors
+> ## In addition: Warning message: (...)
+> ## 1 function calls resulted in an error
+> 
+> ## When running with Nthreads = 1, the error message points to
+> ## Error in stats::optim(start_dense_rates/rate_scale,
+> ## function(x) objective_function(x *  :
+> ## L-BFGS-B needs finite values of 'fn'
+> 
+> ## I haven't been able to find a seed that will crash it with a single
+> ## Ntrials.
+> 
+> 
+> source("mk-shared.R")
+Loading required package: Rcpp
+
+Attaching package: ‘igraph’
+
+The following object is masked from ‘package:phangorn’:
+
+    diversity
+
+The following objects are masked from ‘package:ape’:
+
+    degree, edges, mst, ring
+
+The following objects are masked from ‘package:stats’:
+
+    decompose, spectrum
+
+The following object is masked from ‘package:base’:
+
+    union
+
+
+Attaching package: ‘ggpubr’
+
+The following object is masked from ‘package:ape’:
+
+    rotate
+
+ggtree v3.10.1 For help: https://yulab-smu.top/treedata-book/
+
+If you use the ggtree package suite in published research, please cite
+the appropriate paper(s):
+
+Guangchuang Yu, David Smith, Huachen Zhu, Yi Guan, Tommy Tsan-Yuk Lam.
+ggtree: an R package for visualization and annotation of phylogenetic
+trees with their covariates and other associated data. Methods in
+Ecology and Evolution. 2017, 8(1):28-36. doi:10.1111/2041-210X.12628
+
+Guangchuang Yu. Using ggtree to visualize data on tree-like structures.
+Current Protocols in Bioinformatics. 2020, 69:e96. doi:10.1002/cpbi.96
+
+G Yu. Data Integration, Manipulation and Visualization of Phylogenetic
+Trees (1st ed.). Chapman and Hall/CRC. 2022. ISBN: 9781032233574
+
+Attaching package: ‘ggtree’
+
+The following object is masked from ‘package:ggpubr’:
+
+    rotate
+
+The following object is masked from ‘package:ape’:
+
+    rotate
+
+> require(parallel)
+Loading required package: parallel
+> 
+> ## redefine, to show debug output
+> mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iterations = 200, Ntrials = 1, optim_algorithm = c("optim", "nlminb"), Nthreads = 1)
++ {
++   optim_algorithm = match.arg(optim_algorithm)
++   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
++   # otherwise, tips = tip.states, use.priors = FALSE
++   
++   # construct matrix describing possible transitions
++   index_matrix = mk_index_matrix(L, reversible=reversible)
++   
++   # do the Mk model fitting
++   # remember the (deterministic) prior on the root state! this is important
++   
++   if(use.priors == TRUE) {
++     # specify priors, rather than precise states, on the tips of the tree
++     fitted_mk = castor::fit_mk(mk.tree, 2**L,
++                                tip_priors=tips,
++                                optim_algorithm = optim_algorithm,
++                                rate_model=index_matrix,
++                                root_prior=c(1,rep(0, 2**L-1)),
++                                optim_max_iterations = optim_max_iterations,
++                                Ntrials = Ntrials,
++                                Nthreads = Nthreads,
++                                verbose = TRUE, diagnostics = TRUE)
++   } else {
++     # specify precise states
++     fitted_mk = castor::fit_mk(mk.tree, 2**L,
++                                tip_states=tips,
++                                optim_algorithm = optim_algorithm,
++                                rate_model=index_matrix,
++                                root_prior=c(1,rep(0, 2**L-1)),
++                                optim_max_iterations = optim_max_iterations,
++                                Ntrials = Ntrials,
++                                Nthreads = Nthreads)
++   }
++   
++   if(fitted_mk$converged != TRUE) {
++     message("WARNING: Mk model fit didn't converge!")
++   }
++   
++   # convert inferred rate matrix into transition set
++   mk_df = mk_pull_transitions(fitted_mk, reversible = reversible)
++   # and simulate fluxes through this transition set
++   mk_fluxes = mk_simulate_fluxes(fitted_mk, L, reversible = reversible)
++   
++   # return a list of useful info
++   l.return = list(fitted_mk = fitted_mk, 
++                   reversible = reversible, 
++                   mk_df = mk_df, 
++                   mk_fluxes = mk_fluxes)  
++   
++   return(l.return)
++ }
+> 
+> 
+> # the longest case study here (TB) takes >1hr on a modern machine to fit one instance of the reversible model
+> # using more trials increases the chance we find the global optimum, but will multiply this runtime
+> # minimum value is 1 -- use this if computer time is limiting
+> Ntrials = 2
+> 
+> # If the computer has multiple cores, using Nthreads will decrease running time
+> # when Ntrials > 1 (if Nthreads = Ntrials, running time will be about the same as
+> ## for Ntrials = 1). By default, set Nthreads to Ntrials, unless thee are fewer
+> # cores
+> Nthreads = 1
+> 
+> # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
+> # argument specifies the particular case to produce
+> setup.data = function(expt) {
++   ## set.seed(1)
++ 
++   # cross-sectional cases -- use the mk_cross_sectional function to get a set of trees and tip priors for a given matrix
++   if(expt == "cross.sectional.single" |
++        expt == "cross.sectional.many" |
++        expt == "cross.sectional.cross" |
++        expt == "ovarian") {
++     cross.sectional = TRUE
++     uncertain = FALSE
++ 
++     if(expt == "cross.sectional.single") {
++       # A single cross-sectional observation with binary genotype 101
++       # (0-indexed decimal: 5).
++       # Not shown in figures in the paper.
++       L = 3
++       m = matrix(c(1,0,1), ncol=L, byrow=TRUE)
++     }
++     if(expt == "cross.sectional.many") {
++       # Three cross-sectional observations, with binary genotypes
++       # 001, 011, 111 (0-indexed decimal: 1, 3, 7, respectively)
++       # Not shown in figures in the paper.
++       L = 3
++       m = matrix(c(0,0,1,
++                    0,1,1,
++                    1,1,1), ncol=L, byrow = TRUE)
++     }
++     if(expt == "cross.sectional.cross") {
++       # cross-sectional data, supporting two competing pathways (set up for L=3)
++       # fig-2.png; Figure 4 of current ms
++       L = 4
++       ## CRASH
++       cat("\n        inside the if with seed ", this_seed, "\n")
++       set.seed(this_seed)
++       sample.size = 10
++       m = matrix(c(0,0,0,1,
++                    0,0,1,1,
++                    0,1,1,1,
++                    1,0,0,0,
++                    1,1,0,0,
++                    1,1,1,0), ncol=L, byrow=TRUE)
++ 
++       m = m[sample(1:nrow(m), sample.size, replace = TRUE), ]
++       m_in_global_env <<- m
++       
++       print(m)
++     }
++ 
++     if(expt == "ovarian") {
++       L = 5
++       m = read.csv("Data/ovarian.csv", header=FALSE)[,1:L]
++     }
++ 
++     # cast the matrix into a form that fit_mk will take: a collection of binary trees with root 0, one unspecified tip, and one tip corresponding to the observation
++     cs.data = mk_cross_sectional(m, L)
++ 
++     mk.tree = cs.data$tree
++     tip.priors = cs.data$tips
++ 
++     # just for plotting -- record feature sets
++     # get barcodes from (converted) 0-indexed decimal states
++     # (barcodes are not used for analysis per se, but for plots)
++     tip.states = apply(m, 1, BinToDec)+1
++     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
++ 
++     # construct tables of observed barcodes and their decimals in the dataset
++     b.stats = as.data.frame(table(barcodes))
++     data.plot = ggplot(b.stats, aes(x=barcodes, y=Freq)) + geom_col() +
++       theme_light() + theme(axis.text.x = element_text(angle = 45, hjust=1)) +
++       xlab("Observations") + ylab("Count") +
++       scale_y_continuous(breaks = seq(0, max(b.stats$Freq), by = 1))
++     data.plot.nb = ggplot() + geom_blank()
++ 
++     x.binary = m
++     x.decimal = apply(x.binary, 1, BinToDec) + 1
++   }
++ 
++   ####### random tree with random, single-pathway dynamics
++   if(expt == "single" || expt == "single.rev" || expt == "single.uncertain") {
++     # single and single.rev in fig-1.png 1, Figure 3 of current ms.
++     # single.uncertain in fig-2.png, Figure 4 of current ms.
++     L = 5
++     cross.sectional = FALSE
++ 
++     # parameterisation for tree construction
++     tree.size = 64
++     birth.rate = 1
++     death.rate = 0.1
++     # accumulation rate for features (and loss rate, for reversible setup)
++     accumulation.rate = 1.2
++     loss.rate = 1
++ 
++     # create random phylogeny with tree.size nodes from birth-death process parameterised as above
++     my.tree = ape::rphylo(tree.size, birth=birth.rate, death=death.rate)
++     my.tree$node.label = as.character(1:my.tree$Nnode)
++     tree.labels = c(my.tree$tip.label, my.tree$node.label)
++ 
++     # generate state for all nodes traversing tree breadth-first
++     # and setting the state of the child nodes according to
++     # accumulation (and, if reversible, loss.rate) and branch length
++     my.root = phangorn::getRoot(my.tree)
++     to.do = c(my.root)
++     # initialise state list
++     x = list()
++     x[[my.root]] = rep(0,L)
++     # while we still have vertices to simulate
++     while(length(to.do) > 0) {
++       # initialise a new to-do list for next iteration
++       new.to.do = c()
++       # loop through each node in current to-do list
++       for(i in to.do) {
++         this.outgoing.edges = which(my.tree$edge[,1] == i)
++         # loop over this node's children
++         for(j in this.outgoing.edges) {
++           this.child = my.tree$edge[j,2]
++           this.branch.length = my.tree$edge.length[j]
++           # construct state for this child based on its parent
++           x[[this.child]] = x[[i]]
++           # find leftmost zero in current state, and change with some probability
++           # recall dynamics here are 00000 -> 10000 -> 11000 -> 11100 -> 11110 -> 11111
++           ## (see first paragraph of section "Synthetic case studies")
++           ref = which(x[[this.child]] == 0)[1]
++           if(runif(1) < accumulation.rate*this.branch.length) { x[[this.child]][ref] = 1 }
++           # in the reversible case, allow the leftmost feature ("first feature" in the ms.:
++           # second paragraph of "Synthetic case studies") to revert with some probability
++           if(expt == "single.rev") {
++             if(runif(1) < loss.rate*this.branch.length) { x[[this.child]][1] = 0 }
++           }
++           # add this child to to state list, and to next iteration's to-do
++           new.to.do = c(new.to.do, this.child)
++         }
++       }
++       # update to-do list
++       to.do = new.to.do
++     }
++ 
++     my.tree$tip.label = x[1:length(my.tree$tip.label)]
++ 
++     # if we have precise observations, construct set of tip states
++     if(expt == "single" | expt == "single.rev") { # fig-1.png 1, Figure 3 of current ms.
++       uncertain = FALSE
++       # assign feature barcodes to tree
++       # convert binary tip labels into 1-indexed decimal state refs
++       tip.states = unlist(lapply(my.tree$tip.label,BinToDec))+1
++ 
++       mk.tree = my.tree
++       mk.tree$tip.label = tip.states
++ 
++       # just for plotting
++       # retrieve barcodes from (converted) 0-indexed decimal state refs
++       barcodes = unlist(lapply(tip.states-1, DecToBin, L))
++       my.tree2 = my.tree
++       my.tree2$tip.label = barcodes
++ 
++       data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
++       data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
++       x.decimal = tip.states
++       x.binary = do.call(rbind, my.tree$tip.label)
++     }
++ 
++     # modelling uncertain observations, construct set of tip priors
++     if(expt == "single.uncertain") { # fig-2.png; Figure 4 of current ms.
++       uncertain = TRUE
++       fraction_unknown = 0.5  # proportion of observations to make uncertain: 0.5 in the paper
++       # initialise with zero probability
++       tip.priors = matrix(0, nrow=length(my.tree$tip.label), ncol=2**L)
++       my.tree2 = my.tree
++       # loop through observations
++       for(i in 1:length(my.tree$tip.label)) {
++         # 0-indexed decimal state refs
++         this.ref = BinToDec(my.tree$tip.label[[i]])
++         # convert into 1-indexed decimal state refs for priors
++         tip.priors[i,this.ref+1] = 1
++         if(runif(1) < fraction_unknown) {
++           # otherwise, allow another random state to be compatible with this observation
++           # 0-indexed decimal state refs
++           other.ref = sample(0:(2**L-1), size = 1)
++           # convert into 1-indexed decimal state refs for priors, and split prior probability between original and new randomly selected state
++           tip.priors[i,this.ref+1] = 0.5
++           tip.priors[i,other.ref+1] = 0.5
++           my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]], "/\n", DecToBin(other.ref, L), "?"), collapse="")
++         } else {
++           my.tree2$tip.label[i] = paste0(c(my.tree$tip.label[[i]]), collapse="")
++         }
++       }
++       mk.tree = my.tree
++       data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=2, lineheight=0.7)
++       data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2, lineheight=0.7)
++ 
++       x.decimal = apply(tip.priors, 1, function(x) which(x > 0))
++       x.binary = lapply(x.decimal,
++                         function(x)
++                           lapply(x, function(v) DecToBinV(v - 1, L)))
++     }
++   }
++ 
++   #### this reads tree and barcode data for the tuberculosis set
++   if(expt == "TB") {
++     L = 5
++     cross.sectional = FALSE
++     uncertain = FALSE
++     my.tree = read.tree("Data/ng.2878-S2.txt")
++     my.data = read.csv("Data/tuberculosis-v5-header-19-29.csv")
++ 
++     # prune tips that don't have corresponding observations
++     tips.togo = c()
++     for(i in 1:length(my.tree$tip.label)) {
++       ref = which(my.data$Isolate == my.tree$tip.label[i])
++       if(length(ref) != 1) { tips.togo = c(tips.togo, i) }
++     }
++     mk.tree = ape::drop.tip(my.tree, tips.togo)
++ 
++     # assign tip states based on data set
++     tip.states = c()
++     for(i in 1:length(mk.tree$tip.label)) {
++       ref = which(my.data$Isolate == mk.tree$tip.label[i])
++       barcode = paste(as.vector(my.data
++                                 [ref,2:(L+1)]), collapse="")
++       # 1-indexed decimal state refs
++       tip.states = c(tip.states, BinToDec(barcode)+1)
++     }
++ 
++     # duplicate tree for plotting
++     my.tree2 = mk.tree
++     # retrieve barcodes from (converted) 0-indexed decimal state refs
++     barcodes = unlist(lapply(tip.states-1, DecToBin, L))
++     my.tree2$tip.label = barcodes
++ 
++     data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
++     data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=1)
++ 
++     x.decimal = tip.states
++     x.binary = t(vapply(x.decimal,
++                         function(x) DecToBinV(x - 1, L), rep(0, L)))
++   }
++ 
++   # compile information into a return structure
++   # for cross-sectional or uncertain data, we specify priors on tips
++   # otherwise, we specify precise states
++   # For completeness, the original data are also returned
++   # in vector x.decimal (1-indexed decimal) and array x.binary
++   # (matrix of number of observations x L, with a 1 in altered positions);
++   # For "single.uncertain" lists are used; uncertain observations contain
++   # two elements (for x.decimal to decimal numbers, for x.binary two
++   # vectors of length L). x.decimal is the same as tip.states for
++   # single, single.rev, and TB.
++ 
++   if(cross.sectional == TRUE | uncertain == TRUE) {
++     l.return = list(tree = mk.tree, L = L,
++                     cross.sectional = cross.sectional, uncertain = uncertain,
++                     tips = tip.priors,
++                     data.plot = data.plot, data.plot.nb = data.plot.nb,
++                     x.binary = x.binary, x.decimal = x.decimal)
++   } else {
++     l.return = list(tree = mk.tree, L = L,
++                     cross.sectional = cross.sectional, uncertain = uncertain,
++                     tips = tip.states,
++                     data.plot = data.plot, data.plot.nb = data.plot.nb,
++                     x.binary = x.binary, x.decimal = x.decimal)
++   }
++ 
++   return(l.return)
++ }
+> 
+> # this wrapper function for parallelisation takes an argument determining which experiment to run
+> # and returns a combined object containing the source data, the result of a irreversible fit, and the result of a reversible fit
+> parallel.fn = function(fork) {
++ 
++   # the set of cases we will consider
++   expt.set = c("cross.sectional.single", "cross.sectional.many", # these simple test cases aren't included in the manuscript but can be used for debugging -- uncomment for this
++                "single", "single.rev", # fig-1.png; Figure 3 of current ms.
++                "single.uncertain", # fig-2.png; Figure 4 of current ms.
++                "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
++                "TB", "ovarian") # fig-3.png
++ 
++   expt = expt.set[fork]
++ 
++   # get the data structure for this case
++   dset = setup.data(expt)
++ 
++   # for uncertain data, we specify priors on tip states rather than precise states
++   # we also do this for cross-sectional data because of the way we coerce this structure into a set of binary trees
++   if(dset$cross.sectional == TRUE | dset$uncertain == TRUE) {
++     use.priors = TRUE
++   } else {
++     use.priors = FALSE
++   }
++ 
++   # irreversible model fit
++   print("irreversible")
++   set.seed(this_seed)
++   cat("\n              irreversible with seed ", this_seed, "\n")
++   mk.out.irrev = mk.inference(dset$tree, dset$L,
++                               use.priors, dset$tips,
++                               reversible = FALSE,
++                               Ntrials = Ntrials,
++                               Nthreads = Nthreads)
++   # reversible model fit
++   print("reversible")
++   ## browser()
++   set.seed(this_seed)
++   cat("\n             irreversible with seed  ", this_seed, "\n")
++   mk.out.rev = mk.inference(dset$tree, dset$L,
++                             use.priors, dset$tips,
++                             reversible = TRUE,
++                             optim_max_iterations = 2000,
++                             Ntrials = Ntrials,
++                             Nthreads = Nthreads)
++ 
++   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
++   return(l.return)
++ }
+> 
+> # prepare three-panel results figure: data, irreversible fit, reversible fit
+> results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
++ 
++   if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
++     message("WARNING: irreversible fit didn't converge!")
++   }
++   if(combined.obj$mk.out.rev$fitted_mk$converged != TRUE) {
++     message("WARNING: reversible fit didn't converge!")
++   }
++ 
++   graph.df.rev = combined.obj$mk.out.rev$mk_fluxes
++   L = combined.obj$dset$L
++ 
++   AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
++   AIC.rev.reduced = AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
++   title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2),
++                      " (full ", round(AIC.rev, digits=2), ")", collapse = "")
++   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
++   g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
++     ggtitle(title.rev)
++ 
++   AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
++   AIC.irrev.reduced = AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
++   title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2),
++                        " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
++ 
++   graph.df.irrev = combined.obj$mk.out.irrev$mk_fluxes
++   flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
++   g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
++     ggtitle(title.irrev)
++ 
++   if(omit.branch.lengths == FALSE) {
++     g.data = combined.obj$dset$data.plot #+ ggtitle(label)
++   } else {
++     g.data = combined.obj$dset$data.plot.nb #+ ggtitle(label)
++   }
++ 
++   return( ggarrange(g.data, g.irrev, g.rev, nrow = 1,
++                     labels = c("A", "B", "C"),
++                     widths=c(0.8,1,1),
++                     label.y=c(1, 0.1, 0.1)) )
++ }
+> 
+> 
+> 
+> this_seed <- 100008
+> cat("\n Doing this_seed = ", this_seed, "\n")
+
+ Doing this_seed =  100008 
+> parallel.fn(6)
+
+        inside the if with seed  100008 
+      [,1] [,2] [,3] [,4]
+ [1,]    0    0    0    1
+ [2,]    0    1    1    1
+ [3,]    0    0    1    1
+ [4,]    0    0    1    1
+ [5,]    0    1    1    1
+ [6,]    0    0    0    1
+ [7,]    0    0    0    1
+ [8,]    0    0    0    1
+ [9,]    0    0    0    1
+[10,]    0    1    1    1
+[1] "irreversible"
+
+              irreversible with seed  100008 
+Checking input variables..
+  First guess rate: 3.4
+Generating 640 random parameter starts and selecting the most promising ones..
+  Trial -1: loglikelihood -103.1368105
+  Trial -1: loglikelihood -103.135469
+  Trial -1: loglikelihood -103.1316932
+  Trial -1: loglikelihood -103.1393151
+  Trial -1: loglikelihood -103.1378792
+  Trial -1: loglikelihood -103.1297222
+  Trial -1: loglikelihood -103.1548651
+  Trial -1: loglikelihood -103.1706849
+  Trial -1: loglikelihood -103.1541879
+  Trial -1: loglikelihood -103.1305473
+  Trial -1: loglikelihood -103.1566737
+  Trial -1: loglikelihood -103.1693861
+  Trial -1: loglikelihood -103.083814
+  Trial -1: loglikelihood -103.0792311
+  Trial -1: loglikelihood -103.2533841
+  Trial -1: loglikelihood -103.144059
+  Trial -1: loglikelihood -103.0554582
+  Trial -1: loglikelihood -103.0738899
+  Trial -1: loglikelihood -103.1438449
+  Trial -1: loglikelihood -103.1165382
+  Trial -1: loglikelihood -102.9421307
+  Trial -1: loglikelihood -103.1426607
+  Trial -1: loglikelihood -103.0699031
+  Trial -1: loglikelihood -103.1043384
+  Trial -1: loglikelihood -102.9622939
+  Trial -1: loglikelihood -103.1191999
+  Trial -1: loglikelihood -103.4157913
+  Trial -1: loglikelihood -103.0148229
+  Trial -1: loglikelihood -103.4920756
+  Trial -1: loglikelihood -102.9018927
+  Trial -1: loglikelihood -103.3644642
+  Trial -1: loglikelihood -102.9363641
+  Trial -1: loglikelihood -103.1080706
+  Trial -1: loglikelihood -102.9889857
+  Trial -1: loglikelihood -102.4616575
+  Trial -1: loglikelihood -103.3176768
+  Trial -1: loglikelihood -102.8038728
+  Trial -1: loglikelihood -103.5812858
+  Trial -1: loglikelihood -102.8914455
+  Trial -1: loglikelihood -102.7516501
+  Trial -1: loglikelihood -103.3632786
+  Trial -1: loglikelihood -102.5841204
+  Trial -1: loglikelihood -102.9212536
+  Trial -1: loglikelihood -103.4600083
+  Trial -1: loglikelihood -103.6141143
+  Trial -1: loglikelihood -102.9907473
+  Trial -1: loglikelihood -103.5148754
+  Trial -1: loglikelihood -101.8039562
+  Trial -1: loglikelihood -104.148169
+  Trial -1: loglikelihood -103.6182583
+  Trial -1: loglikelihood -103.0725064
+  Trial -1: loglikelihood -103.4724082
+  Trial -1: loglikelihood -103.3820693
+  Trial -1: loglikelihood -102.9209909
+  Trial -1: loglikelihood -103.3418446
+  Trial -1: loglikelihood -104.0192219
+  Trial -1: loglikelihood -102.3621901
+  Trial -1: loglikelihood -104.6951883
+  Trial -1: loglikelihood -103.6190797
+  Trial -1: loglikelihood -103.8968729
+  Trial -1: loglikelihood -103.8228606
+  Trial -1: loglikelihood -101.1750997
+  Trial -1: loglikelihood -104.0341969
+  Trial -1: loglikelihood -103.3500614
+  Trial -1: loglikelihood -102.6969768
+  Trial -1: loglikelihood -100.2117631
+  Trial -1: loglikelihood -103.6559988
+  Trial -1: loglikelihood -103.6284001
+  Trial -1: loglikelihood -103.1467871
+  Trial -1: loglikelihood -102.7225907
+  Trial -1: loglikelihood -102.3974275
+  Trial -1: loglikelihood -103.3039103
+  Trial -1: loglikelihood -102.9789566
+  Trial -1: loglikelihood -102.2412693
+  Trial -1: loglikelihood -105.840369
+  Trial -1: loglikelihood -105.376724
+  Trial -1: loglikelihood -105.0417736
+  Trial -1: loglikelihood -102.4935878
+  Trial -1: loglikelihood -102.7167528
+  Trial -1: loglikelihood -100.0998976
+  Trial -1: loglikelihood -104.1177695
+  Trial -1: loglikelihood -102.2299803
+  Trial -1: loglikelihood -101.3022714
+  Trial -1: loglikelihood -103.6366738
+  Trial -1: loglikelihood -106.0472699
+  Trial -1: loglikelihood -105.335823
+  Trial -1: loglikelihood -101.801472
+  Trial -1: loglikelihood -107.9449985
+  Trial -1: loglikelihood -102.9322637
+  Trial -1: loglikelihood -102.8655471
+  Trial -1: loglikelihood -105.1358367
+  Trial -1: loglikelihood -101.4881853
+  Trial -1: loglikelihood -101.7716143
+  Trial -1: loglikelihood -101.3511067
+  Trial -1: loglikelihood -104.3084141
+  Trial -1: loglikelihood -98.04374536
+  Trial -1: loglikelihood -106.5438058
+  Trial -1: loglikelihood -101.1729766
+  Trial -1: loglikelihood -103.4907671
+  Trial -1: loglikelihood -104.5589752
+  Trial -1: loglikelihood -104.9934822
+  Trial -1: loglikelihood -103.2935861
+  Trial -1: loglikelihood -105.2138636
+  Trial -1: loglikelihood -106.2128324
+  Trial -1: loglikelihood -101.1048304
+  Trial -1: loglikelihood -107.5664367
+  Trial -1: loglikelihood -98.07634948
+  Trial -1: loglikelihood -103.0147295
+  Trial -1: loglikelihood -102.2015336
+  Trial -1: loglikelihood -105.2064603
+  Trial -1: loglikelihood -102.9454852
+  Trial -1: loglikelihood -98.95528014
+  Trial -1: loglikelihood -107.9930558
+  Trial -1: loglikelihood -108.6634011
+  Trial -1: loglikelihood -108.4423698
+  Trial -1: loglikelihood -102.0879616
+  Trial -1: loglikelihood -100.0102515
+  Trial -1: loglikelihood -107.6177154
+  Trial -1: loglikelihood -98.79522918
+  Trial -1: loglikelihood -107.5744796
+  Trial -1: loglikelihood -99.76640837
+  Trial -1: loglikelihood -98.03458967
+  Trial -1: loglikelihood -101.9252262
+  Trial -1: loglikelihood -105.6674418
+  Trial -1: loglikelihood -109.5313432
+  Trial -1: loglikelihood -107.631077
+  Trial -1: loglikelihood -99.23496239
+  Trial -1: loglikelihood -107.2816062
+  Trial -1: loglikelihood -100.9287609
+  Trial -1: loglikelihood -104.5831362
+  Trial -1: loglikelihood -102.0034657
+  Trial -1: loglikelihood -96.02576685
+  Trial -1: loglikelihood -94.00651206
+  Trial -1: loglikelihood -98.36573412
+  Trial -1: loglikelihood -100.8718107
+  Trial -1: loglikelihood -100.1321211
+  Trial -1: loglikelihood -103.4753025
+  Trial -1: loglikelihood -97.73548828
+  Trial -1: loglikelihood -99.48890154
+  Trial -1: loglikelihood -105.1502236
+  Trial -1: loglikelihood -103.7534356
+  Trial -1: loglikelihood -100.4876033
+  Trial -1: loglikelihood -98.9085685
+  Trial -1: loglikelihood -100.0996338
+  Trial -1: loglikelihood -91.2735036
+  Trial -1: loglikelihood -96.30673129
+  Trial -1: loglikelihood -111.9178094
+  Trial -1: loglikelihood -97.24068456
+  Trial -1: loglikelihood -104.9391922
+  Trial -1: loglikelihood -106.5845486
+  Trial -1: loglikelihood -107.5458877
+  Trial -1: loglikelihood -104.9659072
+  Trial -1: loglikelihood -105.8115912
+  Trial -1: loglikelihood -101.3199152
+  Trial -1: loglikelihood -99.31048771
+  Trial -1: loglikelihood -98.34161941
+  Trial -1: loglikelihood -106.8035331
+  Trial -1: loglikelihood -104.3481139
+  Trial -1: loglikelihood -104.0651263
+  Trial -1: loglikelihood -125.3915694
+  Trial -1: loglikelihood -101.2061794
+  Trial -1: loglikelihood -96.98230463
+  Trial -1: loglikelihood -106.8687845
+  Trial -1: loglikelihood -106.0777013
+  Trial -1: loglikelihood -102.0400034
+  Trial -1: loglikelihood -121.3476296
+  Trial -1: loglikelihood -93.41117682
+  Trial -1: loglikelihood -94.45288527
+  Trial -1: loglikelihood -101.9043239
+  Trial -1: loglikelihood -113.9258749
+  Trial -1: loglikelihood -97.96613182
+  Trial -1: loglikelihood -100.7224302
+  Trial -1: loglikelihood -97.51847001
+  Trial -1: loglikelihood -107.9315684
+  Trial -1: loglikelihood -105.2685558
+  Trial -1: loglikelihood -107.9071261
+  Trial -1: loglikelihood -111.2993724
+  Trial -1: loglikelihood -107.9709335
+  Trial -1: loglikelihood -108.9858187
+  Trial -1: loglikelihood -95.64849473
+  Trial -1: loglikelihood -125.7730831
+  Trial -1: loglikelihood -98.74892478
+  Trial -1: loglikelihood -102.6893059
+  Trial -1: loglikelihood -98.81405394
+  Trial -1: loglikelihood -106.1375167
+  Trial -1: loglikelihood -106.9437024
+  Trial -1: loglikelihood -106.7923041
+  Trial -1: loglikelihood -99.68483869
+  Trial -1: loglikelihood -97.07190341
+  Trial -1: loglikelihood -103.2130146
+  Trial -1: loglikelihood -108.1453924
+  Trial -1: loglikelihood -93.74451661
+  Trial -1: loglikelihood -110.7160276
+  Trial -1: loglikelihood -113.9439886
+  Trial -1: loglikelihood -95.87275608
+  Trial -1: loglikelihood -118.8065572
+  Trial -1: loglikelihood -102.1421136
+  Trial -1: loglikelihood -106.3804346
+  Trial -1: loglikelihood -109.2643014
+  Trial -1: loglikelihood -106.0758087
+  Trial -1: loglikelihood -90.58474142
+  Trial -1: loglikelihood -92.3343792
+  Trial -1: loglikelihood -94.42561011
+  Trial -1: loglikelihood -120.2255012
+  Trial -1: loglikelihood -103.560745
+  Trial -1: loglikelihood -101.281329
+  Trial -1: loglikelihood -109.945831
+  Trial -1: loglikelihood -128.5317353
+  Trial -1: loglikelihood -85.4211328
+  Trial -1: loglikelihood -85.90590927
+  Trial -1: loglikelihood -135.4995815
+  Trial -1: loglikelihood -94.08420249
+  Trial -1: loglikelihood -141.5810249
+  Trial -1: loglikelihood -112.4048221
+  Trial -1: loglikelihood -96.49530439
+  Trial -1: loglikelihood -93.92072834
+  Trial -1: loglikelihood -89.5380027
+  Trial -1: loglikelihood -139.2126267
+  Trial -1: loglikelihood -117.5878102
+  Trial -1: loglikelihood -118.5490516
+  Trial -1: loglikelihood -81.34812016
+  Trial -1: loglikelihood -111.2098423
+  Trial -1: loglikelihood -126.4313748
+  Trial -1: loglikelihood -106.1365798
+  Trial -1: loglikelihood -121.5628204
+  Trial -1: loglikelihood -108.0687685
+  Trial -1: loglikelihood -127.3708572
+  Trial -1: loglikelihood -127.3393327
+  Trial -1: loglikelihood -92.09756674
+  Trial -1: loglikelihood -110.7682204
+  Trial -1: loglikelihood -113.464783
+  Trial -1: loglikelihood -96.94570195
+  Trial -1: loglikelihood -115.9233595
+  Trial -1: loglikelihood -102.5153045
+  Trial -1: loglikelihood -108.9169817
+  Trial -1: loglikelihood -103.7112618
+  Trial -1: loglikelihood -97.58759034
+  Trial -1: loglikelihood -81.63317001
+  Trial -1: loglikelihood -89.40987173
+  Trial -1: loglikelihood -110.4349907
+  Trial -1: loglikelihood -96.96080197
+  Trial -1: loglikelihood -99.24838412
+  Trial -1: loglikelihood -143.2457085
+  Trial -1: loglikelihood -103.3632776
+  Trial -1: loglikelihood -123.5008088
+  Trial -1: loglikelihood -98.93869152
+  Trial -1: loglikelihood -67.3599078
+  Trial -1: loglikelihood -121.7449983
+  Trial -1: loglikelihood -96.10451363
+  Trial -1: loglikelihood -140.430474
+  Trial -1: loglikelihood -108.3780772
+  Trial -1: loglikelihood -134.596984
+  Trial -1: loglikelihood -134.0974532
+  Trial -1: loglikelihood -120.5736464
+  Trial -1: loglikelihood -118.5473543
+  Trial -1: loglikelihood -132.7545706
+  Trial -1: loglikelihood -124.5889539
+  Trial -1: loglikelihood -139.1738949
+  Trial -1: loglikelihood -89.1608622
+  Trial -1: loglikelihood -102.354768
+  Trial -1: loglikelihood -96.96735383
+  Trial -1: loglikelihood -161.6894125
+  Trial -1: loglikelihood -117.7269187
+  Trial -1: loglikelihood -111.5456468
+  Trial -1: loglikelihood -93.34073931
+  Trial -1: loglikelihood -111.1481354
+  Trial -1: loglikelihood -91.92609075
+  Trial -1: loglikelihood -158.3782508
+  Trial -1: loglikelihood -98.89122824
+  Trial -1: loglikelihood -93.64723211
+  Trial -1: loglikelihood -103.433002
+  Trial -1: loglikelihood -109.8592865
+  Trial -1: loglikelihood -121.2006818
+  Trial -1: loglikelihood -131.0528819
+  Trial -1: loglikelihood -115.3620901
+  Trial -1: loglikelihood -126.7123049
+  Trial -1: loglikelihood -101.8691011
+  Trial -1: loglikelihood -152.2783737
+  Trial -1: loglikelihood -142.9957422
+  Trial -1: loglikelihood -116.3931115
+  Trial -1: loglikelihood -117.8123513
+  Trial -1: loglikelihood -129.1014755
+  Trial -1: loglikelihood -137.5197168
+  Trial -1: loglikelihood -145.9857329
+  Trial -1: loglikelihood -133.9726978
+  Trial -1: loglikelihood -139.8793522
+  Trial -1: loglikelihood -90.02707432
+  Trial -1: loglikelihood -124.5390161
+  Trial -1: loglikelihood -88.09517717
+  Trial -1: loglikelihood -162.4977543
+  Trial -1: loglikelihood -81.91881874
+  Trial -1: loglikelihood -129.1822948
+  Trial -1: loglikelihood -96.31179574
+  Trial -1: loglikelihood -130.1581611
+  Trial -1: loglikelihood -110.8898645
+  Trial -1: loglikelihood -121.0497049
+  Trial -1: loglikelihood -103.1553818
+  Trial -1: loglikelihood -89.84223455
+  Trial -1: loglikelihood -62.89183756
+  Trial -1: loglikelihood -142.5685649
+  Trial -1: loglikelihood -174.9834706
+  Trial -1: loglikelihood -156.3690624
+  Trial -1: loglikelihood -149.9785231
+  Trial -1: loglikelihood -73.42899866
+  Trial -1: loglikelihood -111.8298671
+  Trial -1: loglikelihood -89.94708277
+  Trial -1: loglikelihood -155.6664955
+  Trial -1: loglikelihood -93.5935166
+  Trial -1: loglikelihood -87.85913409
+  Trial -1: loglikelihood -175.6292983
+  Trial -1: loglikelihood -77.40640556
+  Trial -1: loglikelihood -103.8066229
+  Trial -1: loglikelihood -82.91292216
+  Trial -1: loglikelihood -160.0054721
+  Trial -1: loglikelihood -173.3399351
+  Trial -1: loglikelihood -118.3331489
+  Trial -1: loglikelihood -128.1005741
+  Trial -1: loglikelihood -153.6404082
+  Trial -1: loglikelihood -103.4905464
+  Trial -1: loglikelihood -114.0848008
+  Trial -1: loglikelihood -132.8837768
+  Trial -1: loglikelihood -168.8027765
+  Trial -1: loglikelihood -81.92671928
+  Trial -1: loglikelihood -178.1069214
+  Trial -1: loglikelihood -120.1034784
+  Trial -1: loglikelihood -160.7403239
+  Trial -1: loglikelihood -69.71275687
+  Trial -1: loglikelihood -161.540861
+  Trial -1: loglikelihood -188.8764418
+  Trial -1: loglikelihood -126.1741148
+  Trial -1: loglikelihood -80.64741243
+  Trial -1: loglikelihood -154.8711126
+  Trial -1: loglikelihood -131.5502656
+  Trial -1: loglikelihood -116.2479369
+  Trial -1: loglikelihood -189.260017
+  Trial -1: loglikelihood -174.3277268
+  Trial -1: loglikelihood -126.2691346
+  Trial -1: loglikelihood -103.616089
+  Trial -1: loglikelihood -74.08487303
+  Trial -1: loglikelihood -167.4786853
+  Trial -1: loglikelihood -157.3680749
+  Trial -1: loglikelihood -147.384155
+  Trial -1: loglikelihood -99.6773424
+  Trial -1: loglikelihood -218.3654654
+  Trial -1: loglikelihood -152.2934911
+  Trial -1: loglikelihood -171.1260737
+  Trial -1: loglikelihood -95.22726089
+  Trial -1: loglikelihood -82.04444326
+  Trial -1: loglikelihood -100.2634122
+  Trial -1: loglikelihood -142.1074224
+  Trial -1: loglikelihood -153.326898
+  Trial -1: loglikelihood -143.4229022
+  Trial -1: loglikelihood -100.4657399
+  Trial -1: loglikelihood -132.8063247
+  Trial -1: loglikelihood -105.5523534
+  Trial -1: loglikelihood -85.83576254
+  Trial -1: loglikelihood -155.8053401
+  Trial -1: loglikelihood -121.644216
+  Trial -1: loglikelihood -225.2974341
+  Trial -1: loglikelihood -131.5403165
+  Trial -1: loglikelihood -171.3846056
+  Trial -1: loglikelihood -266.370137
+  Trial -1: loglikelihood -278.2868431
+  Trial -1: loglikelihood -90.297746
+  Trial -1: loglikelihood -138.8027556
+  Trial -1: loglikelihood -157.5014781
+  Trial -1: loglikelihood -217.6431601
+  Trial -1: loglikelihood -129.0928244
+  Trial -1: loglikelihood -109.7725265
+  Trial -1: loglikelihood -141.8790029
+  Trial -1: loglikelihood -154.0765345
+  Trial -1: loglikelihood -92.9706335
+  Trial -1: loglikelihood -172.2416818
+  Trial -1: loglikelihood -81.93691585
+  Trial -1: loglikelihood -153.5317903
+  Trial -1: loglikelihood -75.28458993
+  Trial -1: loglikelihood -178.1062003
+  Trial -1: loglikelihood -149.3117062
+  Trial -1: loglikelihood -153.3968817
+  Trial -1: loglikelihood -277.4120658
+  Trial -1: loglikelihood -67.15571065
+  Trial -1: loglikelihood -213.5706342
+  Trial -1: loglikelihood -103.2761334
+  Trial -1: loglikelihood -428.7714522
+  Trial -1: loglikelihood -120.3611432
+  Trial -1: loglikelihood -181.7949025
+  Trial -1: loglikelihood -175.630797
+  Trial -1: loglikelihood -149.3649219
+  Trial -1: loglikelihood -266.002128
+  Trial -1: loglikelihood -186.1956395
+  Trial -1: loglikelihood -118.3802241
+  Trial -1: loglikelihood -155.6344045
+  Trial -1: loglikelihood -110.7318648
+  Trial -1: loglikelihood -259.009289
+  Trial -1: loglikelihood -96.60967908
+  Trial -1: loglikelihood -100.2695295
+  Trial -1: loglikelihood -90.5310271
+  Trial -1: loglikelihood -180.7360957
+  Trial -1: loglikelihood -161.0569835
+  Trial -1: loglikelihood -82.31356674
+  Trial -1: loglikelihood -280.343411
+  Trial -1: loglikelihood -131.0627523
+  Trial -1: loglikelihood -91.5694014
+  Trial -1: loglikelihood -185.3095949
+  Trial -1: loglikelihood -299.9901838
+  Trial -1: loglikelihood -101.9312719
+  Trial -1: loglikelihood -184.7329271
+  Trial -1: loglikelihood -165.7173305
+  Trial -1: loglikelihood -150.0934091
+  Trial -1: loglikelihood -202.312169
+  Trial -1: loglikelihood -92.81947593
+  Trial -1: loglikelihood -176.6759661
+  Trial -1: loglikelihood -97.84937416
+  Trial -1: loglikelihood -246.1466303
+  Trial -1: loglikelihood -171.9876936
+  Trial -1: loglikelihood -87.13631237
+  Trial -1: loglikelihood -366.6501536
+  Trial -1: loglikelihood -67.45035119
+  Trial -1: loglikelihood -384.4476334
+  Trial -1: loglikelihood -95.81543331
+  Trial -1: loglikelihood -142.2099099
+  Trial -1: loglikelihood -242.3203332
+  Trial -1: loglikelihood -86.34058875
+  Trial -1: loglikelihood -76.7752909
+  Trial -1: loglikelihood -225.1014448
+  Trial -1: loglikelihood -57.31692949
+  Trial -1: loglikelihood -83.06099778
+  Trial -1: loglikelihood -375.474461
+  Trial -1: loglikelihood -98.55393611
+  Trial -1: loglikelihood -116.2176777
+  Trial -1: loglikelihood -109.0483699
+  Trial -1: loglikelihood -112.4131905
+  Trial -1: loglikelihood -75.184325
+  Trial -1: loglikelihood -170.9261733
+  Trial -1: loglikelihood -105.2842699
+  Trial -1: loglikelihood -163.7770644
+  Trial -1: loglikelihood -228.0616318
+  Trial -1: loglikelihood -200.0649928
+  Trial -1: loglikelihood -127.8995776
+  Trial -1: loglikelihood -224.765995
+  Trial -1: loglikelihood -530.9084567
+  Trial -1: loglikelihood -152.1015588
+  Trial -1: loglikelihood -131.4926209
+  Trial -1: loglikelihood -152.9191861
+  Trial -1: loglikelihood -135.3571389
+  Trial -1: loglikelihood -411.0091685
+  Trial -1: loglikelihood -186.7938533
+  Trial -1: loglikelihood -86.24700542
+  Trial -1: loglikelihood -106.4599364
+  Trial -1: loglikelihood -171.6590302
+  Trial -1: loglikelihood -240.1460515
+  Trial -1: loglikelihood -92.15568027
+  Trial -1: loglikelihood -224.2603673
+  Trial -1: loglikelihood -194.0832301
+  Trial -1: loglikelihood -76.72267696
+  Trial -1: loglikelihood -106.878858
+  Trial -1: loglikelihood -87.91638895
+  Trial -1: loglikelihood -68.86245344
+  Trial -1: loglikelihood -100.9605557
+  Trial -1: loglikelihood -231.5707164
+  Trial -1: loglikelihood -77.68956105
+  Trial -1: loglikelihood -218.9130752
+  Trial -1: loglikelihood -229.6971912
+  Trial -1: loglikelihood -96.60823307
+  Trial -1: loglikelihood -449.3021222
+  Trial -1: loglikelihood -652.3243075
+  Trial -1: loglikelihood -358.9359398
+  Trial -1: loglikelihood -92.15338864
+  Trial -1: loglikelihood -147.0538579
+  Trial -1: loglikelihood -716.7869367
+  Trial -1: loglikelihood -168.5652172
+  Trial -1: loglikelihood -103.2883549
+  Trial -1: loglikelihood -60.20043142
+  Trial -1: loglikelihood -146.8903152
+  Trial -1: loglikelihood -755.5698155
+  Trial -1: loglikelihood -235.0346649
+  Trial -1: loglikelihood -80.47374712
+  Trial -1: loglikelihood -107.8865953
+  Trial -1: loglikelihood -678.1665159
+  Trial -1: loglikelihood -239.1849659
+  Trial -1: loglikelihood -205.6276435
+  Trial -1: loglikelihood -413.3093059
+  Trial -1: loglikelihood -314.0996361
+  Trial -1: loglikelihood -52.71102558
+  Trial -1: loglikelihood -113.6868626
+  Trial -1: loglikelihood -65.39326522
+  Trial -1: loglikelihood -528.9222795
+  Trial -1: loglikelihood -124.4769427
+  Trial -1: loglikelihood -310.981653
+  Trial -1: loglikelihood -165.6985439
+  Trial -1: loglikelihood -118.2455992
+  Trial -1: loglikelihood -199.720852
+  Trial -1: loglikelihood -343.9567751
+  Trial -1: loglikelihood -624.0840638
+  Trial -1: loglikelihood -255.4579581
+  Trial -1: loglikelihood -714.5587941
+  Trial -1: loglikelihood -208.365333
+  Trial -1: loglikelihood -190.626341
+  Trial -1: loglikelihood -108.0392197
+  Trial -1: loglikelihood -311.4191695
+  Trial -1: loglikelihood -487.3187822
+  Trial -1: loglikelihood -575.9475469
+  Trial -1: loglikelihood -190.9394537
+  Trial -1: loglikelihood -246.4206741
+  Trial -1: loglikelihood -380.8740598
+  Trial -1: loglikelihood -204.8677317
+  Trial -1: loglikelihood -85.05055425
+  Trial -1: loglikelihood -91.76460675
+  Trial -1: loglikelihood -370.8583593
+  Trial -1: loglikelihood -254.263952
+  Trial -1: loglikelihood -98.43438833
+  Trial -1: loglikelihood -101.4624947
+  Trial -1: loglikelihood -361.6745564
+  Trial -1: loglikelihood -1295.23406
+  Trial -1: loglikelihood -302.9174165
+  Trial -1: loglikelihood -300.5349233
+  Trial -1: loglikelihood -518.211541
+  Trial -1: loglikelihood -319.7770568
+  Trial -1: loglikelihood -155.2802068
+  Trial -1: loglikelihood -1383.184573
+  Trial -1: loglikelihood -242.4349301
+  Trial -1: loglikelihood -87.49703162
+  Trial -1: loglikelihood -81.73822035
+  Trial -1: loglikelihood -296.6227958
+  Trial -1: loglikelihood -287.7257711
+  Trial -1: loglikelihood -204.4030223
+  Trial -1: loglikelihood -194.2114925
+  Trial -1: loglikelihood -349.4388397
+  Trial -1: loglikelihood -151.4995049
+  Trial -1: loglikelihood -351.6246209
+  Trial -1: loglikelihood -106.6034817
+  Trial -1: loglikelihood -100.3962426
+  Trial -1: loglikelihood -1218.697207
+  Trial -1: loglikelihood -193.9641361
+  Trial -1: loglikelihood -171.0600756
+  Trial -1: loglikelihood -239.1849571
+  Trial -1: loglikelihood -256.3047834
+  Trial -1: loglikelihood -94.31625901
+  Trial -1: loglikelihood -83.08035816
+  Trial -1: loglikelihood -662.6152759
+  Trial -1: loglikelihood -475.6788665
+  Trial -1: loglikelihood -140.4559616
+  Trial -1: loglikelihood -1569.666611
+  Trial -1: loglikelihood -722.7113904
+  Trial -1: loglikelihood -96.62500406
+  Trial -1: loglikelihood -529.937494
+  Trial -1: loglikelihood -1917.302069
+  Trial -1: loglikelihood -65.81443416
+  Trial -1: loglikelihood -1507.818465
+  Trial -1: loglikelihood -122.2360587
+  Trial -1: loglikelihood -76.3369496
+  Trial -1: loglikelihood -71.61964931
+  Trial -1: loglikelihood -1616.670892
+  Trial -1: loglikelihood -567.9338932
+  Trial -1: loglikelihood -88.15176819
+  Trial -1: loglikelihood -205.0401986
+  Trial -1: loglikelihood -846.7456723
+  Trial -1: loglikelihood -133.5139897
+  Trial -1: loglikelihood -93.16283614
+  Trial -1: loglikelihood -94.10153427
+  Trial -1: loglikelihood -113.9348337
+  Trial -1: loglikelihood -2267.26358
+  Trial -1: loglikelihood -176.6534624
+  Trial -1: loglikelihood -598.5741554
+  Trial -1: loglikelihood -398.8929434
+  Trial -1: loglikelihood -67.44584565
+  Trial -1: loglikelihood -532.5708886
+  Trial -1: loglikelihood -725.368815
+  Trial -1: loglikelihood -995.2660785
+  Trial -1: loglikelihood -419.4991853
+  Trial -1: loglikelihood -309.2546281
+  Trial -1: loglikelihood -320.6020289
+  Trial -1: loglikelihood -117.0745056
+  Trial -1: loglikelihood -362.2977009
+  Trial -1: loglikelihood -418.7602268
+  Trial -1: loglikelihood -177.4161055
+  Trial -1: loglikelihood -1509.604398
+  Trial -1: loglikelihood -564.6416795
+  Trial -1: loglikelihood -198.0745719
+  Trial -1: loglikelihood -517.0428932
+  Trial -1: loglikelihood -85.35074887
+  Trial -1: loglikelihood -3450.284596
+  Trial -1: loglikelihood -456.4345208
+  Trial -1: loglikelihood -1280.462951
+  Trial -1: loglikelihood -356.0585752
+  Trial -1: loglikelihood -1090.626745
+  Trial -1: loglikelihood -1848.968153
+  Trial -1: loglikelihood -100.0661307
+  Trial -1: loglikelihood -4034.512626
+  Trial -1: loglikelihood -1563.219012
+  Trial -1: loglikelihood -70.41372564
+  Trial -1: loglikelihood -86.01239425
+  Trial -1: loglikelihood -906.6916645
+  Trial -1: loglikelihood -214.6165032
+  Trial -1: loglikelihood -77.58464024
+  Trial -1, tree 1 (2 tips): Model evaluation failed: 
+  Trial -1: loglikelihood -162.9075028
+  Trial -1: loglikelihood -296.8828613
+  Trial -1: loglikelihood -693.2331999
+  Trial -1: loglikelihood -402.2513185
+  Trial -1: loglikelihood -2074.868467
+  Trial -1: loglikelihood -318.3074031
+  Trial -1: loglikelihood -427.2940657
+  Trial -1: loglikelihood -780.269777
+  Trial -1: loglikelihood -253.4027426
+  Trial -1: loglikelihood -253.9485423
+  Trial -1: loglikelihood -98.74830644
+  Trial -1: loglikelihood -344.5146849
+  Trial -1: loglikelihood -336.1042119
+  Trial -1: loglikelihood -3194.913113
+  Trial -1: loglikelihood -2469.308507
+  Trial -1: loglikelihood -1568.422476
+  Trial -1: loglikelihood -883.3691054
+  Trial -1: loglikelihood -76.88435137
+  Trial -1, tree 1 (2 tips): Model evaluation failed: 
+  Trial -1: loglikelihood -3724.862043
+  Trial -1: loglikelihood -128.4982693
+  Trial -1: loglikelihood -248.8878131
+  Trial -1, tree 1 (2 tips): Model evaluation failed: 
+  Trial -1: loglikelihood -143.2810336
+  Trial -1: loglikelihood -832.3302737
+  Trial -1: loglikelihood -1560.510652
+  Trial -1: loglikelihood -221.0527259
+  Trial -1: loglikelihood -123.4755006
+  Trial -1: loglikelihood -157.6057107
+  Trial -1: loglikelihood -49.60486287
+  Trial -1: loglikelihood -226.299964
+  Trial -1, tree 1 (2 tips): Model evaluation failed: 
+  Trial -1, tree 1 (2 tips): Model evaluation failed: 
+  Trial -1: loglikelihood -852.3540496
+  Trial -1: loglikelihood -575.6928034
+  Trial -1: loglikelihood -354.6257564
+  Trial -1: loglikelihood -580.0064848
+  Trial -1: loglikelihood -3734.431073
+  Trial -1: loglikelihood -253.9273878
+  Trial -1: loglikelihood -117.791812
+  Trial -1: loglikelihood -72.05654703
+  Trial -1: loglikelihood -66.27691863
+  Trial -1: loglikelihood -479.8784901
+  Trial -1: loglikelihood -409.2397736
+Fitting 32 free parameters (2 trials)..
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1431605
+  Trial 1: loglikelihood -103.1305535
+  Trial 1: loglikelihood -103.1421607
+  Trial 1: loglikelihood -103.1315537
+  Trial 1: loglikelihood -103.1411609
+  Trial 1: loglikelihood -103.1325539
+  Trial 1: loglikelihood -103.1361634
+  Trial 1: loglikelihood -103.1375564
+  Trial 1: loglikelihood -103.1507271
+  Trial 1: loglikelihood -103.1229864
+  Trial 1: loglikelihood -103.1502273
+  Trial 1: loglikelihood -103.1234866
+  Trial 1: loglikelihood -103.1492279
+  Trial 1: loglikelihood -103.1244873
+  Trial 1: loglikelihood -103.1381416
+  Trial 1: loglikelihood -103.1355748
+  Trial 1: loglikelihood -103.1376418
+  Trial 1: loglikelihood -103.136075
+  Trial 1: loglikelihood -103.1366425
+  Trial 1: loglikelihood -103.1370757
+  Trial 1: loglikelihood -103.1418484
+  Trial 1: loglikelihood -103.1318671
+  Trial 1: loglikelihood -103.1408491
+  Trial 1: loglikelihood -103.1328678
+  Trial 1: loglikelihood -103.1373159
+  Trial 1: loglikelihood -103.1364014
+  Trial 1: loglikelihood -103.1368161
+  Trial 1: loglikelihood -103.1369016
+  Trial 1: loglikelihood -103.1368161
+  Trial 1: loglikelihood -103.1369016
+  Trial 1: loglikelihood -103.1376404
+  Trial 1: loglikelihood -103.1360764
+  Trial 1: loglikelihood -103.1366411
+  Trial 1: loglikelihood -103.137077
+  Trial 1: loglikelihood -103.1376404
+  Trial 1: loglikelihood -103.1360764
+  Trial 1: loglikelihood -103.1366411
+  Trial 1: loglikelihood -103.137077
+  Trial 1: loglikelihood -103.1423888
+  Trial 1: loglikelihood -103.131327
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -103.1368588
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -92.00118506
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -76.65824291
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -71.73333927
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.99581023
+  Trial 1: loglikelihood -91.99609668
+  Trial 1: loglikelihood -92.01553069
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -71.94047131
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -78.51033513
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.99619316
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.99578174
+  Trial 1: loglikelihood -91.99612513
+  Trial 1: loglikelihood -91.99595185
+  Trial 1: loglikelihood -91.99595479
+  Trial 1: loglikelihood -91.99910216
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.99220591
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.99613267
+  Trial 1: loglikelihood -91.99577382
+  Trial 1: loglikelihood -91.99589483
+  Trial 1: loglikelihood -91.99601182
+  Trial 1: loglikelihood -91.99589483
+  Trial 1: loglikelihood -91.99601182
+  Trial 1: loglikelihood -91.99730032
+  Trial 1: loglikelihood -91.99460562
+  Trial 1: loglikelihood -91.99511502
+  Trial 1: loglikelihood -91.99679276
+  Trial 1: loglikelihood -91.9961568
+  Trial 1: loglikelihood -91.99574959
+  Trial 1: loglikelihood -91.99588004
+  Trial 1: loglikelihood -91.99602667
+  Trial 1: loglikelihood -92.00001899
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -91.9959533
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0640243
+  Trial 1: loglikelihood -103.0514207
+  Trial 1: loglikelihood -103.0630241
+  Trial 1: loglikelihood -103.0524212
+  Trial 1: loglikelihood -103.062024
+  Trial 1: loglikelihood -103.0534219
+  Trial 1: loglikelihood -103.0570303
+  Trial 1: loglikelihood -103.0584205
+  Trial 1: loglikelihood -103.071597
+  Trial 1: loglikelihood -103.0438476
+  Trial 1: loglikelihood -103.071096
+  Trial 1: loglikelihood -103.0443489
+  Trial 1: loglikelihood -103.0700948
+  Trial 1: loglikelihood -103.0453515
+  Trial 1: loglikelihood -103.059006
+  Trial 1: loglikelihood -103.0564415
+  Trial 1: loglikelihood -103.0585063
+  Trial 1: loglikelihood -103.0569416
+  Trial 1: loglikelihood -103.0575081
+  Trial 1: loglikelihood -103.0579411
+  Trial 1: loglikelihood -103.0627144
+  Trial 1: loglikelihood -103.0527322
+  Trial 1: loglikelihood -103.0617134
+  Trial 1: loglikelihood -103.0537345
+  Trial 1: loglikelihood -103.0581809
+  Trial 1: loglikelihood -103.0572674
+  Trial 1: loglikelihood -103.0576815
+  Trial 1: loglikelihood -103.0577672
+  Trial 1: loglikelihood -103.0576815
+  Trial 1: loglikelihood -103.0577672
+  Trial 1: loglikelihood -103.0585059
+  Trial 1: loglikelihood -103.0569419
+  Trial 1: loglikelihood -103.0575066
+  Trial 1: loglikelihood -103.0579426
+  Trial 1: loglikelihood -103.0585051
+  Trial 1: loglikelihood -103.0569428
+  Trial 1: loglikelihood -103.0575068
+  Trial 1: loglikelihood -103.0579424
+  Trial 1: loglikelihood -103.0632536
+  Trial 1: loglikelihood -103.0521932
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -103.0577243
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.69505361
+  Trial 1: loglikelihood -66.68373859
+  Trial 1: loglikelihood -66.69368632
+  Trial 1: loglikelihood -66.68510655
+  Trial 1: loglikelihood -66.69251859
+  Trial 1: loglikelihood -66.68627498
+  Trial 1: loglikelihood -66.68908615
+  Trial 1: loglikelihood -66.68970981
+  Trial 1: loglikelihood -66.70558555
+  Trial 1: loglikelihood -66.67320507
+  Trial 1: loglikelihood -66.70373724
+  Trial 1: loglikelihood -66.67505579
+  Trial 1: loglikelihood -66.70133135
+  Trial 1: loglikelihood -66.67746659
+  Trial 1: loglikelihood -66.69016428
+  Trial 1: loglikelihood -66.68863017
+  Trial 1: loglikelihood -66.6897246
+  Trial 1: loglikelihood -66.68907027
+  Trial 1: loglikelihood -66.68926342
+  Trial 1: loglikelihood -66.68953204
+  Trial 1: loglikelihood -66.69431232
+  Trial 1: loglikelihood -66.68448018
+  Trial 1: loglikelihood -66.69206061
+  Trial 1: loglikelihood -66.68673628
+  Trial 1: loglikelihood -66.68967488
+  Trial 1: loglikelihood -66.68912012
+  Trial 1: loglikelihood -66.68934062
+  Trial 1: loglikelihood -66.68945462
+  Trial 1: loglikelihood -66.68934062
+  Trial 1: loglikelihood -66.68945462
+  Trial 1: loglikelihood -66.69022873
+  Trial 1: loglikelihood -66.68856572
+  Trial 1: loglikelihood -66.68908853
+  Trial 1: loglikelihood -66.68970722
+  Trial 1: loglikelihood -66.68981492
+  Trial 1: loglikelihood -66.68897982
+  Trial 1: loglikelihood -66.68926622
+  Trial 1: loglikelihood -66.68952922
+  Trial 1: loglikelihood -66.69433931
+  Trial 1: loglikelihood -66.68445392
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -66.68939759
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28722962
+  Trial 1: loglikelihood -45.27652694
+  Trial 1: loglikelihood -45.2840697
+  Trial 1: loglikelihood -45.2796905
+  Trial 1: loglikelihood -45.28298565
+  Trial 1: loglikelihood -45.28077508
+  Trial 1: loglikelihood -45.28168529
+  Trial 1: loglikelihood -45.28207434
+  Trial 1: loglikelihood -45.30011003
+  Trial 1: loglikelihood -45.2636439
+  Trial 1: loglikelihood -45.29054456
+  Trial 1: loglikelihood -45.27324624
+  Trial 1: loglikelihood -45.28715729
+  Trial 1: loglikelihood -45.2766533
+  Trial 1: loglikelihood -45.28230476
+  Trial 1: loglikelihood -45.28145402
+  Trial 1: loglikelihood -45.28190283
+  Trial 1: loglikelihood -45.28185642
+  Trial 1: loglikelihood -45.28182332
+  Trial 1: loglikelihood -45.28193601
+  Trial 1: loglikelihood -45.28604072
+  Trial 1: loglikelihood -45.27771589
+  Trial 1: loglikelihood -45.28164666
+  Trial 1: loglikelihood -45.28212329
+  Trial 1: loglikelihood -45.28207778
+  Trial 1: loglikelihood -45.28168131
+  Trial 1: loglikelihood -45.28182323
+  Trial 1: loglikelihood -45.28193604
+  Trial 1: loglikelihood -45.28182323
+  Trial 1: loglikelihood -45.28193604
+  Trial 1: loglikelihood -45.28292035
+  Trial 1: loglikelihood -45.28083816
+  Trial 1: loglikelihood -45.28134486
+  Trial 1: loglikelihood -45.28241516
+  Trial 1: loglikelihood -45.28213334
+  Trial 1: loglikelihood -45.28162561
+  Trial 1: loglikelihood -45.28179215
+  Trial 1: loglikelihood -45.28196721
+  Trial 1: loglikelihood -45.2862132
+  Trial 1: loglikelihood -45.27754397
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -45.28187961
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.43361411
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -77.00106712
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -68.84888215
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42814884
+  Trial 1: loglikelihood -91.42849795
+  Trial 1: loglikelihood -91.4480163
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -72.17850313
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -62.1337119
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42860844
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42833463
+  Trial 1: loglikelihood -91.42831182
+  Trial 1: loglikelihood -91.42828361
+  Trial 1: loglikelihood -91.4283629
+  Trial 1: loglikelihood -91.43184907
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42792121
+  Trial 1: loglikelihood -91.42873363
+  Trial 1: loglikelihood -91.4284545
+  Trial 1: loglikelihood -91.42819184
+  Trial 1: loglikelihood -91.4282916
+  Trial 1: loglikelihood -91.42835486
+  Trial 1: loglikelihood -91.42826986
+  Trial 1: loglikelihood -91.42837661
+  Trial 1: loglikelihood -91.42938249
+  Trial 1: loglikelihood -91.42726329
+  Trial 1: loglikelihood -91.42783469
+  Trial 1: loglikelihood -91.42881241
+  Trial 1: loglikelihood -91.42847206
+  Trial 1: loglikelihood -91.42817422
+  Trial 1: loglikelihood -91.42826781
+  Trial 1: loglikelihood -91.42837871
+  Trial 1: loglikelihood -91.43218183
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -91.42832322
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46909819
+  Trial 1: loglikelihood -42.45843304
+  Trial 1: loglikelihood -42.4646708
+  Trial 1: loglikelihood -42.46286751
+  Trial 1: loglikelihood -42.46323877
+  Trial 1: loglikelihood -42.4643004
+  Trial 1: loglikelihood -42.46357902
+  Trial 1: loglikelihood -42.46395523
+  Trial 1: loglikelihood -42.48252971
+  Trial 1: loglikelihood -42.4449987
+  Trial 1: loglikelihood -42.46640904
+  Trial 1: loglikelihood -42.46121647
+  Trial 1: loglikelihood -42.46133746
+  Trial 1: loglikelihood -42.46633626
+  Trial 1: loglikelihood -42.46413713
+  Trial 1: loglikelihood -42.46339635
+  Trial 1: loglikelihood -42.46378568
+  Trial 1: loglikelihood -42.4637482
+  Trial 1: loglikelihood -42.46371718
+  Trial 1: loglikelihood -42.46381678
+  Trial 1: loglikelihood -42.46769697
+  Trial 1: loglikelihood -42.45983431
+  Trial 1: loglikelihood -42.46347081
+  Trial 1: loglikelihood -42.46407289
+  Trial 1: loglikelihood -42.46393843
+  Trial 1: loglikelihood -42.46359531
+  Trial 1: loglikelihood -42.46372104
+  Trial 1: loglikelihood -42.46381286
+  Trial 1: loglikelihood -42.4637103
+  Trial 1: loglikelihood -42.46382361
+  Trial 1: loglikelihood -42.46481916
+  Trial 1: loglikelihood -42.46271402
+  Trial 1: loglikelihood -42.46325208
+  Trial 1: loglikelihood -42.46428253
+  Trial 1: loglikelihood -42.46397696
+  Trial 1: loglikelihood -42.46355668
+  Trial 1: loglikelihood -42.46369244
+  Trial 1: loglikelihood -42.46384154
+  Trial 1: loglikelihood -42.46793185
+  Trial 1: loglikelihood -42.45959999
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -42.46376693
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.072634
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06692529
+  Trial 1: loglikelihood -39.06763062
+  Trial 1: loglikelihood -39.06665386
+  Trial 1: loglikelihood -39.06789806
+  Trial 1: loglikelihood -39.06708211
+  Trial 1: loglikelihood -39.06746513
+  Trial 1: loglikelihood -39.08625467
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06330697
+  Trial 1: loglikelihood -39.07142683
+  Trial 1: loglikelihood -39.06484038
+  Trial 1: loglikelihood -39.06981993
+  Trial 1: loglikelihood -39.06758175
+  Trial 1: loglikelihood -39.06696478
+  Trial 1: loglikelihood -39.06719731
+  Trial 1: loglikelihood -39.06734966
+  Trial 1: loglikelihood -39.06722997
+  Trial 1: loglikelihood -39.06731695
+  Trial 1: loglikelihood -39.07154108
+  Trial 1: loglikelihood -39.06300281
+  Trial 1: loglikelihood -39.06472768
+  Trial 1: loglikelihood -39.06983943
+  Trial 1: loglikelihood -39.06741436
+  Trial 1: loglikelihood -39.06713239
+  Trial 1: loglikelihood -39.06723455
+  Trial 1: loglikelihood -39.06731233
+  Trial 1: loglikelihood -39.06721954
+  Trial 1: loglikelihood -39.06732735
+  Trial 1: loglikelihood -39.06802926
+  Trial 1: loglikelihood -39.06651703
+  Trial 1: loglikelihood -39.06690108
+  Trial 1: loglikelihood -39.06764627
+  Trial 1: loglikelihood -39.06745733
+  Trial 1: loglikelihood -39.06708933
+  Trial 1: loglikelihood -39.06719991
+  Trial 1: loglikelihood -39.06734705
+  Trial 1: loglikelihood -39.07126785
+  Trial 1: loglikelihood -39.06327698
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -39.06727342
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.80643681
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.80156984
+  Trial 1: loglikelihood -38.80051227
+  Trial 1: loglikelihood -38.80090927
+  Trial 1: loglikelihood -38.80117087
+  Trial 1: loglikelihood -38.80083683
+  Trial 1: loglikelihood -38.80123978
+  Trial 1: loglikelihood -38.81997759
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.80116271
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8004319
+  Trial 1: loglikelihood -38.80173857
+  Trial 1: loglikelihood -38.80133131
+  Trial 1: loglikelihood -38.8007446
+  Trial 1: loglikelihood -38.80099633
+  Trial 1: loglikelihood -38.80107994
+  Trial 1: loglikelihood -38.80098902
+  Trial 1: loglikelihood -38.80108726
+  Trial 1: loglikelihood -38.80531513
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.79928421
+  Trial 1: loglikelihood -38.80280813
+  Trial 1: loglikelihood -38.80115913
+  Trial 1: loglikelihood -38.80091699
+  Trial 1: loglikelihood -38.80100461
+  Trial 1: loglikelihood -38.80107162
+  Trial 1: loglikelihood -38.80099047
+  Trial 1: loglikelihood -38.80108576
+  Trial 1: loglikelihood -38.80182837
+  Trial 1: loglikelihood -38.80024727
+  Trial 1: loglikelihood -38.80065139
+  Trial 1: loglikelihood -38.80142534
+  Trial 1: loglikelihood -38.80119651
+  Trial 1: loglikelihood -38.80087952
+  Trial 1: loglikelihood -38.80097322
+  Trial 1: loglikelihood -38.80110307
+  Trial 1: loglikelihood -38.8050529
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.8010381
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59843534
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59373248
+  Trial 1: loglikelihood -38.59225731
+  Trial 1: loglikelihood -38.59259747
+  Trial 1: loglikelihood -38.59339172
+  Trial 1: loglikelihood -38.59277528
+  Trial 1: loglikelihood -38.59320959
+  Trial 1: loglikelihood -38.61212442
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.5932772
+  Trial 1: loglikelihood -38.5928319
+  Trial 1: loglikelihood -38.59024656
+  Trial 1: loglikelihood -38.59584854
+  Trial 1: loglikelihood -38.5932821
+  Trial 1: loglikelihood -38.59270203
+  Trial 1: loglikelihood -38.59299421
+  Trial 1: loglikelihood -38.59299023
+  Trial 1: loglikelihood -38.59293896
+  Trial 1: loglikelihood -38.59304555
+  Trial 1: loglikelihood -38.59727063
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59226649
+  Trial 1: loglikelihood -38.59372793
+  Trial 1: loglikelihood -38.59309174
+  Trial 1: loglikelihood -38.59289261
+  Trial 1: loglikelihood -38.59296942
+  Trial 1: loglikelihood -38.59301502
+  Trial 1: loglikelihood -38.59294877
+  Trial 1: loglikelihood -38.59303569
+  Trial 1: loglikelihood -38.59366779
+  Trial 1: loglikelihood -38.59231612
+  Trial 1: loglikelihood -38.59271832
+  Trial 1: loglikelihood -38.59326648
+  Trial 1: loglikelihood -38.59312706
+  Trial 1: loglikelihood -38.59285722
+  Trial 1: loglikelihood -38.5929365
+  Trial 1: loglikelihood -38.59304801
+  Trial 1: loglikelihood -38.59693158
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.59299221
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40746238
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40299759
+  Trial 1: loglikelihood -38.40086064
+  Trial 1: loglikelihood -38.4019669
+  Trial 1: loglikelihood -38.40189087
+  Trial 1: loglikelihood -38.4017259
+  Trial 1: loglikelihood -38.40212822
+  Trial 1: loglikelihood -38.42111423
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.4033578
+  Trial 1: loglikelihood -38.40060579
+  Trial 1: loglikelihood -38.40109009
+  Trial 1: loglikelihood -38.40284893
+  Trial 1: loglikelihood -38.4022037
+  Trial 1: loglikelihood -38.4016497
+  Trial 1: loglikelihood -38.40193412
+  Trial 1: loglikelihood -38.40191956
+  Trial 1: loglikelihood -38.40187556
+  Trial 1: loglikelihood -38.4019782
+  Trial 1: loglikelihood -38.4064057
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.4012634
+  Trial 1: loglikelihood -38.40259938
+  Trial 1: loglikelihood -38.40199405
+  Trial 1: loglikelihood -38.40185958
+  Trial 1: loglikelihood -38.4019137
+  Trial 1: loglikelihood -38.40193998
+  Trial 1: loglikelihood -38.40189544
+  Trial 1: loglikelihood -38.40195826
+  Trial 1: loglikelihood -38.40241069
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40176027
+  Trial 1: loglikelihood -38.40209364
+  Trial 1: loglikelihood -38.40203518
+  Trial 1: loglikelihood -38.40181838
+  Trial 1: loglikelihood -38.40188141
+  Trial 1: loglikelihood -38.40197232
+  Trial 1: loglikelihood -38.40578179
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.40192683
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.32102761
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31658358
+  Trial 1: loglikelihood -38.31428396
+  Trial 1: loglikelihood -38.31562181
+  Trial 1: loglikelihood -38.31524531
+  Trial 1: loglikelihood -38.31524902
+  Trial 1: loglikelihood -38.31561449
+  Trial 1: loglikelihood -38.33463358
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31715742
+  Trial 1: loglikelihood -38.31381174
+  Trial 1: loglikelihood -38.3154906
+  Trial 1: loglikelihood -38.31544719
+  Trial 1: loglikelihood -38.31571239
+  Trial 1: loglikelihood -38.31515039
+  Trial 1: loglikelihood -38.31543465
+  Trial 1: loglikelihood -38.31542842
+  Trial 1: loglikelihood -38.31537936
+  Trial 1: loglikelihood -38.31548378
+  Trial 1: loglikelihood -38.32014371
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31455765
+  Trial 1: loglikelihood -38.31631511
+  Trial 1: loglikelihood -38.31546931
+  Trial 1: loglikelihood -38.31539373
+  Trial 1: loglikelihood -38.31542421
+  Trial 1: loglikelihood -38.31543885
+  Trial 1: loglikelihood -38.31541386
+  Trial 1: loglikelihood -38.31544921
+  Trial 1: loglikelihood -38.31572877
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31533023
+  Trial 1: loglikelihood -38.31553297
+  Trial 1: loglikelihood -38.31552078
+  Trial 1: loglikelihood -38.31534219
+  Trial 1: loglikelihood -38.31539341
+  Trial 1: loglikelihood -38.3154697
+  Trial 1: loglikelihood -38.31920922
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.31543153
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21824546
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21355084
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21261863
+  Trial 1: loglikelihood -38.21259408
+  Trial 1: loglikelihood -38.21242399
+  Trial 1: loglikelihood -38.21278423
+  Trial 1: loglikelihood -38.23187253
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21332955
+  Trial 1: loglikelihood -38.21199753
+  Trial 1: loglikelihood -38.21227986
+  Trial 1: loglikelihood -38.21300448
+  Trial 1: loglikelihood -38.21289776
+  Trial 1: loglikelihood -38.21230971
+  Trial 1: loglikelihood -38.21260099
+  Trial 1: loglikelihood -38.21260678
+  Trial 1: loglikelihood -38.21254908
+  Trial 1: loglikelihood -38.21265875
+  Trial 1: loglikelihood -38.21763158
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21139682
+  Trial 1: loglikelihood -38.21382166
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260387
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21263655
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21259196
+  Trial 1: loglikelihood -38.21261581
+  Trial 1: loglikelihood -38.21267033
+  Trial 1: loglikelihood -38.21253735
+  Trial 1: loglikelihood -38.21257448
+  Trial 1: loglikelihood -38.21263331
+  Trial 1: loglikelihood -38.21626627
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.21260388
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.18522052
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.18072985
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17975324
+  Trial 1: loglikelihood -38.17936919
+  Trial 1: loglikelihood -38.17939268
+  Trial 1: loglikelihood -38.17972562
+  Trial 1: loglikelihood -38.19884407
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.18122221
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17981576
+  Trial 1: loglikelihood -38.17937401
+  Trial 1: loglikelihood -38.17984614
+  Trial 1: loglikelihood -38.17927142
+  Trial 1: loglikelihood -38.17956177
+  Trial 1: loglikelihood -38.17955609
+  Trial 1: loglikelihood -38.17950551
+  Trial 1: loglikelihood -38.17961242
+  Trial 1: loglikelihood -38.18458119
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17853222
+  Trial 1: loglikelihood -38.18059538
+  Trial 1: loglikelihood -38.17955893
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955893
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955893
+  Trial 1: loglikelihood -38.1796235
+  Trial 1: loglikelihood -38.17949428
+  Trial 1: loglikelihood -38.17953036
+  Trial 1: loglikelihood -38.17958752
+  Trial 1: loglikelihood -38.18323148
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.17955892
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14586081
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14171521
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.1406214
+  Trial 1: loglikelihood -38.13969675
+  Trial 1: loglikelihood -38.14001441
+  Trial 1: loglikelihood -38.14030016
+  Trial 1: loglikelihood -38.15952113
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14337998
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14107907
+  Trial 1: loglikelihood -38.1393021
+  Trial 1: loglikelihood -38.14042414
+  Trial 1: loglikelihood -38.13988973
+  Trial 1: loglikelihood -38.14017215
+  Trial 1: loglikelihood -38.14014199
+  Trial 1: loglikelihood -38.14010839
+  Trial 1: loglikelihood -38.14020583
+  Trial 1: loglikelihood -38.14505251
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.13957923
+  Trial 1: loglikelihood -38.14074245
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015708
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14021586
+  Trial 1: loglikelihood -38.14009821
+  Trial 1: loglikelihood -38.14013109
+  Trial 1: loglikelihood -38.14018308
+  Trial 1: loglikelihood -38.14386136
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.14015707
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.1179599
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11401306
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11280121
+  Trial 1: loglikelihood -38.11164456
+  Trial 1: loglikelihood -38.11209363
+  Trial 1: loglikelihood -38.11234871
+  Trial 1: loglikelihood -38.13171189
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11633488
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11322352
+  Trial 1: loglikelihood -38.11128535
+  Trial 1: loglikelihood -38.11246098
+  Trial 1: loglikelihood -38.11198069
+  Trial 1: loglikelihood -38.11224423
+  Trial 1: loglikelihood -38.11219766
+  Trial 1: loglikelihood -38.11217894
+  Trial 1: loglikelihood -38.11226303
+  Trial 1: loglikelihood -38.11696429
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11200432
+  Trial 1: loglikelihood -38.11244335
+  Trial 1: loglikelihood -38.11222096
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222096
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222096
+  Trial 1: loglikelihood -38.11227285
+  Trial 1: loglikelihood -38.11216901
+  Trial 1: loglikelihood -38.11219807
+  Trial 1: loglikelihood -38.11224386
+  Trial 1: loglikelihood -38.11594925
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.11222095
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.0960703
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09217062
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09083246
+  Trial 1: loglikelihood -38.08976593
+  Trial 1: loglikelihood -38.09017455
+  Trial 1: loglikelihood -38.09042015
+  Trial 1: loglikelihood -38.10996407
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09465151
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09083246
+  Trial 1: loglikelihood -38.08983304
+  Trial 1: loglikelihood -38.09049056
+  Trial 1: loglikelihood -38.0901035
+  Trial 1: loglikelihood -38.09032187
+  Trial 1: loglikelihood -38.09027237
+  Trial 1: loglikelihood -38.09026537
+  Trial 1: loglikelihood -38.09032895
+  Trial 1: loglikelihood -38.09488325
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09032089
+  Trial 1: loglikelihood -38.0902779
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029714
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09033834
+  Trial 1: loglikelihood -38.09025588
+  Trial 1: loglikelihood -38.09027902
+  Trial 1: loglikelihood -38.09031527
+  Trial 1: loglikelihood -38.09402976
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.09029713
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.08174746
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07775632
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07631289
+  Trial 1: loglikelihood -38.07555881
+  Trial 1: loglikelihood -38.07580452
+  Trial 1: loglikelihood -38.07606294
+  Trial 1: loglikelihood -38.09577079
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07997419
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07579237
+  Trial 1: loglikelihood -38.07615153
+  Trial 1: loglikelihood -38.07605496
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07595062
+  Trial 1: loglikelihood -38.07591635
+  Trial 1: loglikelihood -38.07591471
+  Trial 1: loglikelihood -38.07595231
+  Trial 1: loglikelihood -38.08042356
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07602578
+  Trial 1: loglikelihood -38.07584526
+  Trial 1: loglikelihood -38.0759335
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.0759335
+  Trial 1: loglikelihood -38.0759335
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.0759335
+  Trial 1: loglikelihood -38.07595919
+  Trial 1: loglikelihood -38.07590778
+  Trial 1: loglikelihood -38.07592223
+  Trial 1: loglikelihood -38.07594478
+  Trial 1: loglikelihood -38.07963863
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.07593349
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.07506325
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.07099957
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06954207
+  Trial 1: loglikelihood -38.06890199
+  Trial 1: loglikelihood -38.06908612
+  Trial 1: loglikelihood -38.06935347
+  Trial 1: loglikelihood -38.08913178
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.07302941
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06885453
+  Trial 1: loglikelihood -38.06966311
+  Trial 1: loglikelihood -38.06928959
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06922919
+  Trial 1: loglikelihood -38.06920989
+  Trial 1: loglikelihood -38.06920869
+  Trial 1: loglikelihood -38.06923043
+  Trial 1: loglikelihood -38.07369434
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06928771
+  Trial 1: loglikelihood -38.06915544
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921956
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921954
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.0692344
+  Trial 1: loglikelihood -38.06920468
+  Trial 1: loglikelihood -38.06921304
+  Trial 1: loglikelihood -38.06922606
+  Trial 1: loglikelihood -38.07289759
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06921955
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06735601
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06319241
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06171577
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.0613315
+  Trial 1: loglikelihood -38.06161514
+  Trial 1: loglikelihood -38.08148792
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06496484
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06080194
+  Trial 1: loglikelihood -38.062225
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06592807
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.0615084
+  Trial 1: loglikelihood -38.06144178
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147306
+  Trial 1: loglikelihood -38.06511399
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.06147305
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06567143
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06154082
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06007538
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05964968
+  Trial 1: loglikelihood -38.05991983
+  Trial 1: loglikelihood -38.07978702
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06343143
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05931774
+  Trial 1: loglikelihood -38.06033029
+  Trial 1: loglikelihood -38.0597845
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06424566
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05982089
+  Trial 1: loglikelihood -38.05975218
+  Trial 1: loglikelihood -38.0597845
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.0597845
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.0597845
+  Trial 1: loglikelihood -38.0597845
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.06342762
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05978449
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.06349921
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05944892
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05801534
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05748854
+  Trial 1: loglikelihood -38.05772301
+  Trial 1: loglikelihood -38.07757332
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.06162139
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05766374
+  Trial 1: loglikelihood -38.0576218
+  Trial 1: loglikelihood -38.05760553
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.06209013
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05763397
+  Trial 1: loglikelihood -38.05758124
+  Trial 1: loglikelihood -38.05760553
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760553
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760553
+  Trial 1: loglikelihood -38.05760553
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.06125317
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05760552
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.0633049
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05925923
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05783067
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05729938
+  Trial 1: loglikelihood -38.05753076
+  Trial 1: loglikelihood -38.07737999
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.06144122
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05751514
+  Trial 1: loglikelihood -38.05738863
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.06190605
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05743558
+  Trial 1: loglikelihood -38.05739826
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741483
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.06106207
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.05741482
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.06219989
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05816622
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05676282
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05623526
+  Trial 1: loglikelihood -38.05645562
+  Trial 1: loglikelihood -38.07631317
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.06032652
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05655424
+  Trial 1: loglikelihood -38.05620947
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.06087236
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563185
+  Trial 1: loglikelihood -38.05637633
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05634521
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05998914
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.0563452
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.06060503
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05658545
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05520937
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05471075
+  Trial 1: loglikelihood -38.05492102
+  Trial 1: loglikelihood -38.07481554
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05867165
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05503321
+  Trial 1: loglikelihood -38.05467163
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05937929
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05473771
+  Trial 1: loglikelihood -38.05489828
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481567
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481565
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05845655
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05481566
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05754454
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05356017
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05223034
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05181008
+  Trial 1: loglikelihood -38.0520046
+  Trial 1: loglikelihood -38.07200688
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05546302
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05199331
+  Trial 1: loglikelihood -38.05189642
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05652601
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05174862
+  Trial 1: loglikelihood -38.05207073
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190715
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05554499
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.05190714
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.05434175
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.05041351
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.0491191
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04877972
+  Trial 1: loglikelihood -38.04895988
+  Trial 1: loglikelihood -38.06910098
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.05215231
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04872322
+  Trial 1: loglikelihood -38.04909454
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.0535203
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04866979
+  Trial 1: loglikelihood -38.04907475
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886964
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886962
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.05250947
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04886963
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04956514
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04576148
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04450646
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04425151
+  Trial 1: loglikelihood -38.0444074
+  Trial 1: loglikelihood -38.06476961
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.0473971
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04386697
+  Trial 1: loglikelihood -38.04487465
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04899662
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04413109
+  Trial 1: loglikelihood -38.04453287
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432933
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432932
+  Trial 1: loglikelihood -38.04798002
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.04432931
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.04236373
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03880763
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03761523
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03739841
+  Trial 1: loglikelihood -38.03750962
+  Trial 1: loglikelihood -38.05818266
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.04059967
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03687313
+  Trial 1: loglikelihood -38.03812134
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.04213447
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03730122
+  Trial 1: loglikelihood -38.03761182
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745393
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.04112918
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.03745392
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.0331013
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02994717
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02886006
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02861281
+  Trial 1: loglikelihood -38.02866323
+  Trial 1: loglikelihood -38.04974377
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.0323263
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02838855
+  Trial 1: loglikelihood -38.02897463
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.03334595
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02856179
+  Trial 1: loglikelihood -38.02871916
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863798
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.03235546
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02863797
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02947847
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02659886
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02558288
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02531623
+  Trial 1: loglikelihood -38.02533786
+  Trial 1: loglikelihood -38.0466995
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02944181
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02531887
+  Trial 1: loglikelihood -38.02542277
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.03004787
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02531621
+  Trial 1: loglikelihood -38.02534266
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532703
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532701
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02907701
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02532702
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02815773
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.0254598
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02449424
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423462
+  Trial 1: loglikelihood -38.0242448
+  Trial 1: loglikelihood -38.04581113
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02855444
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02429521
+  Trial 1: loglikelihood -38.02427305
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02897288
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.0242654
+  Trial 1: loglikelihood -38.02421872
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.0242397
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02801194
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02423969
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02754401
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02498044
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02405343
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02380965
+  Trial 1: loglikelihood -38.02381508
+  Trial 1: loglikelihood -38.04554308
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02822317
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02384783
+  Trial 1: loglikelihood -38.02386738
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02855587
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02386219
+  Trial 1: loglikelihood -38.02376719
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381236
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02760143
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02381235
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02729841
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02481623
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02391332
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02367935
+  Trial 1: loglikelihood -38.02368261
+  Trial 1: loglikelihood -38.04550794
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02814822
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02370658
+  Trial 1: loglikelihood -38.02374684
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02843228
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02374338
+  Trial 1: loglikelihood -38.02362321
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368098
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02748031
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02368097
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02713979
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.0247153
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02383017
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360406
+  Trial 1: loglikelihood -38.02360618
+  Trial 1: loglikelihood -38.04550047
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02810521
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02362241
+  Trial 1: loglikelihood -38.02368
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02836372
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02367383
+  Trial 1: loglikelihood -38.02354104
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360512
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360512
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02741157
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02360511
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02691254
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02456447
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02370396
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348932
+  Trial 1: loglikelihood -38.02349038
+  Trial 1: loglikelihood -38.04547551
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02802335
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02349647
+  Trial 1: loglikelihood -38.02357634
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02826104
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.0235627
+  Trial 1: loglikelihood -38.02342165
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348986
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348985
+  Trial 1: loglikelihood -38.02730543
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02348984
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02652171
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02429236
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02347171
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327653
+  Trial 1: loglikelihood -38.02327674
+  Trial 1: loglikelihood -38.04540155
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02784496
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02326671
+  Trial 1: loglikelihood -38.0233811
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02807254
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02334842
+  Trial 1: loglikelihood -38.02320955
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327664
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327662
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327662
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02710591
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02327663
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02590351
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02384791
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02308801
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292458
+  Trial 1: loglikelihood -38.0229249
+  Trial 1: loglikelihood -38.04525136
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.0275073
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02287926
+  Trial 1: loglikelihood -38.02306696
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02776619
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02298065
+  Trial 1: loglikelihood -38.02287369
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292474
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292474
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02677317
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02292473
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02535893
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02347
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02277094
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264114
+  Trial 1: loglikelihood -38.02264249
+  Trial 1: loglikelihood -38.04515757
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02719164
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02254832
+  Trial 1: loglikelihood -38.02283427
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02753893
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02266277
+  Trial 1: loglikelihood -38.02262598
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264182
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02650719
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02264181
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02520737
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02334748
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02266072
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253325
+  Trial 1: loglikelihood -38.02253439
+  Trial 1: loglikelihood -38.04507455
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02709516
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02248937
+  Trial 1: loglikelihood -38.02267703
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.0274474
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253933
+  Trial 1: loglikelihood -38.02253353
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253383
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02640134
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02253382
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02516706
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02330838
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02262303
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248788
+  Trial 1: loglikelihood -38.02248808
+  Trial 1: loglikelihood -38.04501865
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02710765
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02254082
+  Trial 1: loglikelihood -38.02253292
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.0274062
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248943
+  Trial 1: loglikelihood -38.02249176
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248797
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248799
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248797
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248797
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02635538
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248798
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02514854
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02330051
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02261887
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248613
+  Trial 1: loglikelihood -38.02248644
+  Trial 1: loglikelihood -38.04502946
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02710261
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02253119
+  Trial 1: loglikelihood -38.02253934
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02740768
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248588
+  Trial 1: loglikelihood -38.02249194
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248629
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02635483
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.02248628
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02513012
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02329341
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02261559
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02248492
+  Trial 1: loglikelihood -38.02248529
+  Trial 1: loglikelihood -38.04504122
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02710254
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02252524
+  Trial 1: loglikelihood -38.0225431
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02740952
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02248345
+  Trial 1: loglikelihood -38.02249202
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02248511
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02248511
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02635495
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.0224851
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02509999
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02328226
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02261067
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248295
+  Trial 1: loglikelihood -38.02248338
+  Trial 1: loglikelihood -38.04506067
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02710774
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02251862
+  Trial 1: loglikelihood -38.02254607
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02741209
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.0224804
+  Trial 1: loglikelihood -38.02249121
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248317
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02635529
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02248316
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02504302
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02326172
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02260184
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247906
+  Trial 1: loglikelihood -38.02247951
+  Trial 1: loglikelihood -38.0450974
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02712531
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02251017
+  Trial 1: loglikelihood -38.0225472
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02741616
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247572
+  Trial 1: loglikelihood -38.02248816
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247928
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.0224793
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247928
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247928
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02635597
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247929
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02496339
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02323351
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02258989
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247323
+  Trial 1: loglikelihood -38.02247361
+  Trial 1: loglikelihood -38.04514817
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02716017
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02250401
+  Trial 1: loglikelihood -38.02254216
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02742082
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247012
+  Trial 1: loglikelihood -38.02248204
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247343
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247341
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02635672
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02247342
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02487219
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02320181
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02257666
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246612
+  Trial 1: loglikelihood -38.02246636
+  Trial 1: loglikelihood -38.04520586
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02721347
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02250306
+  Trial 1: loglikelihood -38.0225293
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02742486
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246513
+  Trial 1: loglikelihood -38.0224727
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246625
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246623
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02635749
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246624
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02479526
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02317663
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.0225674
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246182
+  Trial 1: loglikelihood -38.02246192
+  Trial 1: loglikelihood -38.04525769
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02726938
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02250642
+  Trial 1: loglikelihood -38.02251766
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02742979
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246357
+  Trial 1: loglikelihood -38.02246553
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246188
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02636021
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246187
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02473038
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.0231563
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02256089
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246024
+  Trial 1: loglikelihood -38.02246029
+  Trial 1: loglikelihood -38.04530483
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02731574
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02250525
+  Trial 1: loglikelihood -38.02251606
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02743669
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246338
+  Trial 1: loglikelihood -38.02246252
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246027
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246027
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02636464
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02246026
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02467822
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02314028
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02255609
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245965
+  Trial 1: loglikelihood -38.0224597
+  Trial 1: loglikelihood -38.04534388
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.0273537
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02250238
+  Trial 1: loglikelihood -38.02251815
+  Trial 1: loglikelihood -38.02245968
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02744315
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02246361
+  Trial 1: loglikelihood -38.02246113
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245969
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245968
+  Trial 1: loglikelihood -38.02245968
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02636894
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245967
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02466017
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02313487
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02255459
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.0224596
+  Trial 1: loglikelihood -38.04535761
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02736825
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02250191
+  Trial 1: loglikelihood -38.02251856
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02744545
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02246393
+  Trial 1: loglikelihood -38.02246063
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245959
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245959
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02637058
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245958
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02465372
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02313297
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02255409
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245954
+  Trial 1: loglikelihood -38.02245957
+  Trial 1: loglikelihood -38.04536254
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02737396
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.0225021
+  Trial 1: loglikelihood -38.02251837
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02744627
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02246411
+  Trial 1: loglikelihood -38.0224604
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245957
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245955
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02637119
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: loglikelihood -38.02245956
+  Trial 1: Final loglikelihood -38.02245956, converged = 1
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.64599463
+  Trial 2: loglikelihood -49.60345365
+  Trial 2: loglikelihood -49.6447414
+  Trial 2: loglikelihood -49.57412899
+  Trial 2: loglikelihood -49.57186865
+  Trial 2: loglikelihood -49.63885991
+  Trial 2: loglikelihood -49.60749385
+  Trial 2: loglikelihood -49.60221474
+  Trial 2: loglikelihood -50.88009139
+  Trial 2: loglikelihood -49.16143001
+  Trial 2: loglikelihood -50.5628505
+  Trial 2: loglikelihood -49.5507779
+  Trial 2: loglikelihood -47.29302037
+  Trial 2: loglikelihood -55.45365245
+  Trial 2: loglikelihood -49.74043922
+  Trial 2: loglikelihood -49.56543749
+  Trial 2: loglikelihood -49.58092583
+  Trial 2: loglikelihood -49.64076036
+  Trial 2: loglikelihood -49.50567229
+  Trial 2: loglikelihood -49.74331536
+  Trial 2: loglikelihood -49.61086518
+  Trial 2: loglikelihood -49.60199782
+  Trial 2: loglikelihood -49.60735516
+  Trial 2: loglikelihood -49.60236747
+  Trial 2: loglikelihood -49.60492278
+  Trial 2: loglikelihood -49.6047969
+  Trial 2: loglikelihood -49.59700575
+  Trial 2: loglikelihood -49.60522761
+  Trial 2: loglikelihood -49.60396919
+  Trial 2: loglikelihood -49.60544103
+  Trial 2: loglikelihood -49.60583532
+  Trial 2: loglikelihood -49.60380994
+  Trial 2: loglikelihood -49.59392142
+  Trial 2: loglikelihood -49.6170551
+  Trial 2: loglikelihood -49.60489532
+  Trial 2: loglikelihood -49.60483041
+  Trial 2: loglikelihood -49.60486282
+  Trial 2: loglikelihood -49.60486292
+  Trial 2: loglikelihood -49.86089356
+  Trial 2: loglikelihood -49.34170343
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2: loglikelihood -49.60486287
+  Trial 2, tree 1 (2 tips): Model evaluation failed: 
+Error in stats::optim(start_dense_rates/rate_scale, function(x) objective_function(x *  : 
+  L-BFGS-B needs finite values of 'fn'
+Calls: parallel.fn ... mk.inference -> <Anonymous> -> fit_single_trial -> <Anonymous>
+Execution halted
