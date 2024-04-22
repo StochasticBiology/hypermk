@@ -110,6 +110,20 @@ trans_irrev <- mk_pull_transitions(fitted_mk_irrev, reversible = FALSE)
 fluxes_rev <- mk_simulate_fluxes(fitted_mk_rev, L = L, reversible = TRUE)
 fluxes_irrev <- mk_simulate_fluxes(fitted_mk_irrev, L = L, reversible = FALSE)
 
+
+#### Steps 1. to 5. using the mk_infer_cross_sectional
+
+## Steps 1 to 5 are wrapped in function mk_infer_cross_sectional
+## For example:
+
+rev_example <- mk_infer_cross_sectional(subject_by_feature,
+                                        reversible = TRUE)
+
+irrev_example <- mk_infer_cross_sectional(subject_by_feature,
+                                          reversible = FALSE)
+
+
+
 #### 6. Plot
 
 ## FIXME: I do not understand the logic of "reduced" or something previous:
@@ -154,3 +168,26 @@ plot.hypercube2(trans.f = fluxes_irrev, bigL = L, rates = FALSE) +
 ## You can threshold the fluxes, for example only those > 25%
 plot.hypercube2(trans.f = fluxes_irrev[fluxes_irrev$Flux > 0.25 * max(fluxes_irrev$Flux), ],
                 bigL = L, rates = FALSE) +  ggtitle(title_irrev)
+
+
+## Doing the same with fits from mk_infer_cross_sectional. Reversible
+stats_rev_B <- data.frame(AIC = rev_example$fitted_mk$AIC,
+                          AIC.reduced = rev_example$fitted_mk$AIC - 2*length(which(rev_example$mk_fluxes$Flux==0)))
+
+title_rev_B <- titlestr(expt = "tiny_example_B", fit = "rev",
+                        stats.df = stats_rev_B)
+
+plot.hypercube2(trans.f = rev_example$mk_fluxes, bigL = L, rates = FALSE) +
+  ggtitle(title_rev_B)
+
+## Irreversible, thresholding
+
+stats_irrev_B <- data.frame(AIC = irrev_example$fitted_mk$AIC,
+                            AIC.reduced = irrev_example$fitted_mk$AIC - 2*length(which(irrev_example$mk_fluxes$Flux==0)))
+
+title_irrev_B <- titlestr(expt = "tiny_example_B", fit = "irrev",
+                          stats.df = stats_irrev_B)
+
+plot.hypercube2(trans.f = irrev_example$mk_fluxes[irrev_example$mk_fluxes$Flux > 0.25 * max(irrev_example$mk_fluxes$Flux), ],
+                bigL = L, rates = FALSE) +
+  ggtitle(title_irrev_B)
