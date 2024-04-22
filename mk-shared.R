@@ -64,7 +64,7 @@ convname = function(str) {
 }
 
 # construct matrix assigning indices to elements describing possible transitions
-mk_index_matrix = function(L, reversible=TRUE) {
+mk_index_matrix = function(L, reversible=TRUE, to.nullify=matrix(nrow=0,ncol=2)) {
   index_matrix = matrix(rep(0, (2**L)**2), nrow=2**L)
   index = 1
   # go through binary strings and put indices on transitions to Hamming +1 neighbours
@@ -75,16 +75,21 @@ mk_index_matrix = function(L, reversible=TRUE) {
         c = b
         c[j] = 1
         partner = BinToDec(c)
-        index_matrix[i+1,partner+1] = index
-        index = index+1
+        if(!any(to.nullify[,1]==i+1 & to.nullify[,2]==partner+1)) {
+          index_matrix[i+1,partner+1] = index
+          index = index+1
+        }
         if(reversible == TRUE) {
           # add reverse transition if required
-          index_matrix[partner+1,i+1] = index
-          index = index+1
+          if(!any(to.nullify[,1]==partner+1 & to.nullify[,2]==i+1)) {
+            index_matrix[partner+1,i+1] = index
+            index = index+1
+          }
         }
       }
     }
   }
+
   return(index_matrix)
 }
 
@@ -313,13 +318,15 @@ plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
 # general wrapper function for HyperMk inference
 # takes tree, number of features, whether to use priors (vs specific states), tip labels (priors or states), and whether to run reversible model or not
 # returns the fitted model with summary dataframes of transitions and fluxes
-mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iterations = 200, Ntrials = 1)
+mk.inference = function(mk.tree, L, use.priors, tips, reversible, 
+                        optim_max_iterations = 200, Ntrials = 1,
+                        to.nullify = matrix(nrow=0, ncol=2))
 {
   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
   # otherwise, tips = tip.states, use.priors = FALSE
   
   # construct matrix describing possible transitions
-  index_matrix = mk_index_matrix(L, reversible=reversible)
+  index_matrix = mk_index_matrix(L, reversible=reversible, to.nullify=to.nullify)
   
   # do the Mk model fitting
   # remember the (deterministic) prior on the root state! this is important

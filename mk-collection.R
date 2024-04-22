@@ -3,10 +3,10 @@
 source("mk-shared.R")
 require(parallel)
 
-# the longest case study here (TB) takes >1hr on a modern machine to fit one instance of the reversible model
+# the longest case study here (TB) takes >10hr on a modern machine to fit one instance of the reversible model
 # using more trials increases the chance we find the global optimum, but will multiply this runtime
 # minimum value is 1 -- use this if computer time is limiting
-Ntrials = 5
+Ntrials = 1
 
 # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 # argument specifies the particular case to produce
@@ -272,6 +272,14 @@ parallel.fn = function(fork) {
                               use.priors, dset$tips, 
                               reversible = FALSE,
                               Ntrials = Ntrials)
+  to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
+  print("irreversible pruned")
+  mk.out.irrev.pruned = mk.inference(dset$tree, dset$L, 
+                              use.priors, dset$tips, 
+                              reversible = FALSE,
+                              Ntrials = Ntrials,
+                              to.nullify = to.nullify.irrev)
+  
   # reversible model fit
   print("reversible")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
@@ -279,8 +287,17 @@ parallel.fn = function(fork) {
                             reversible = TRUE,
                             optim_max_iterations = 2000,
                             Ntrials = Ntrials)
+  to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux==0),1:2]+1
+  print("reversible pruned")
+  mk.out.rev.pruned = mk.inference(dset$tree, dset$L, 
+                                   use.priors, dset$tips, 
+                                   reversible = TRUE,
+                                   optim_max_iterations = 2000,
+                                   Ntrials = Ntrials,
+                                   to.nullify = to.nullify.rev)
   
-  l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
+  l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev,
+                  mk.out.irrev.pruned=mk.out.irrev.pruned, mk.out.rev.pruned=mk.out.rev.pruned)
   return(l.return)
 }
 
@@ -327,8 +344,31 @@ results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.
                     label.y=c(1, 0.1, 0.1)) )
 }
 
+### simple demo of pruning and refitting
+dset = setup.data("cross.sectional.single")
+mk.out.irrev = mk.inference(dset$tree, dset$L, 
+                            use.priors=TRUE, dset$tips, 
+                            reversible = FALSE,
+                            Ntrials = 1)
+blanks = matrix(c(1,2), nrow=1, ncol=2, byrow = TRUE)
+mk.out.irrev2 = mk.inference(dset$tree, dset$L, 
+                             use.priors=TRUE, dset$tips, 
+                             reversible = FALSE,
+                             Ntrials = 1,
+                             to.nullify=blanks)
+
+to.nullify = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
+mk.out.irrev3 = mk.inference(dset$tree, dset$L, 
+                             use.priors=TRUE, dset$tips, 
+                             reversible = FALSE,
+                             Ntrials = 1,
+                             to.nullify=to.nullify)
+mk.out.irrev$fitted_mk$AIC
+mk.out.irrev2$fitted_mk$AIC
+mk.out.irrev3$fitted_mk$AIC
+
 ##### run the set of experiments
-nexpts = 8
+nexpts = 6
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
                               SIMPLIFY = FALSE,
@@ -336,6 +376,7 @@ parallelised.runs <- mcmapply(parallel.fn,
 
 # produce and style output plots
 pmaxs = c(0.03, 0.03, 0.05, 0.02, 0.02, 0.05, 0.05, 0.05)
+pmaxs = rep(0,8)
 obls = rep(FALSE, 8); obls[7] = TRUE
 fig.list = list()
 sf = 2
