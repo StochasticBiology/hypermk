@@ -344,6 +344,54 @@ results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.
                     label.y=c(1, 0.1, 0.1)) )
 }
 
+# prepare three-panel results figure: data, irreversible fit, reversible fit
+results.fig.pruned = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
+  
+  if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
+    message("WARNING: irreversible fit didn't converge!")
+  }
+  if(combined.obj$mk.out.rev$fitted_mk$converged != TRUE) {
+    message("WARNING: reversible fit didn't converge!")
+  }
+  if(combined.obj$mk.out.irrev.pruned$fitted_mk$converged != TRUE) {
+    message("WARNING: irreversible pruned fit didn't converge!")
+  }
+  if(combined.obj$mk.out.rev.pruned$fitted_mk$converged != TRUE) {
+    message("WARNING: reversible pruned fit didn't converge!")
+  }
+  graph.df.rev = combined.obj$mk.out.rev.pruned$mk_fluxes
+  L = combined.obj$dset$L
+  
+  AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
+  AIC.rev.reduced = combined.obj$mk.out.rev.pruned$fitted_mk$AIC #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
+  title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2), 
+                     " (full ", round(AIC.rev, digits=2), ")", collapse = "")
+  flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
+  g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
+    ggtitle(title.rev)
+  
+  AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
+  AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$fitted_mk$AIC #AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
+  title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2), 
+                       " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
+  
+  graph.df.irrev = combined.obj$mk.out.irrev.pruned$mk_fluxes
+  flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
+  g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
+    ggtitle(title.irrev)
+  
+  if(omit.branch.lengths == FALSE) {
+    g.data = combined.obj$dset$data.plot #+ ggtitle(label)
+  } else {
+    g.data = combined.obj$dset$data.plot.nb #+ ggtitle(label)
+  }
+  
+  return( ggarrange(g.data, g.irrev, g.rev, nrow = 1, 
+                    labels = c("A", "B", "C"), 
+                    widths=c(0.8,1,1),
+                    label.y=c(1, 0.1, 0.1)) )
+}
+
 ### simple demo of pruning and refitting
 dset = setup.data("cross.sectional.single")
 mk.out.irrev = mk.inference(dset$tree, dset$L, 
@@ -381,8 +429,8 @@ obls = rep(FALSE, 8); obls[7] = TRUE
 fig.list = list()
 sf = 2
 for(i in 1:nexpts) {
-  fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
-  png(paste0("expt-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
+  fig.list[[i]] = results.fig.pruned(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
+  png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()
 }
