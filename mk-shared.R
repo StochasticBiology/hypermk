@@ -367,16 +367,16 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iter
 
 
 # simple wrapper to immediately do inference on a matrix of cross-sectional observations
-mk_infer_cross_sectional = function(m, reversible = TRUE) {
+mk_infer_cross_sectional = function(m, reversible = TRUE, ...) {
   L = ncol(m)
   # cast the matrix into a form that fit_mk will take: a collection of binary trees with root 0, one unspecified tip, and one tip corresponding to the observation
   cs.data = mk_cross_sectional(m, L)
   
   mk.tree = cs.data$tree
   tip.priors = cs.data$tips
-  mk.fit =  mk.inference(mk.tree, L, 
-                         use.priors=TRUE, tip.priors, 
-                         reversible = reversible)
+  mk.fit =  mk.inference(mk.tree, L,
+                         use.priors=TRUE, tip.priors,
+                         reversible = reversible, ...)
   return(mk.fit)
 }
 
