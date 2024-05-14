@@ -251,7 +251,7 @@ parallel.fn = function(fork) {
                "single", "single.rev", # fig-1.png; Figure 3 of current ms.
                "single.uncertain", # fig-2.png; Figure 4 of current ms.
                "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
-               "TB", "ovarian") # fig-3.png
+               "ovarian", "TB") # fig-3.png
   
   expt = expt.set[fork]
   
@@ -301,51 +301,9 @@ parallel.fn = function(fork) {
   return(l.return)
 }
 
+## specific to the parallel implementation here:
 # prepare three-panel results figure: data, irreversible fit, reversible fit
 results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
-  
-  if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
-    message("WARNING: irreversible fit didn't converge!")
-  }
-  if(combined.obj$mk.out.rev$fitted_mk$converged != TRUE) {
-    message("WARNING: reversible fit didn't converge!")
-  }
-  
-  graph.df.rev = combined.obj$mk.out.rev$mk_fluxes
-  L = combined.obj$dset$L
-  
-  AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
-  AIC.rev.reduced = AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
-  title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2), 
-                     " (full ", round(AIC.rev, digits=2), ")", collapse = "")
-  flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
-  g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
-    ggtitle(title.rev)
-  
-  AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
-  AIC.irrev.reduced = AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
-  title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2), 
-                       " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
-  
-  graph.df.irrev = combined.obj$mk.out.irrev$mk_fluxes
-  flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
-  g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
-    ggtitle(title.irrev)
-  
-  if(omit.branch.lengths == FALSE) {
-    g.data = combined.obj$dset$data.plot #+ ggtitle(label)
-  } else {
-    g.data = combined.obj$dset$data.plot.nb #+ ggtitle(label)
-  }
-  
-  return( ggarrange(g.data, g.irrev, g.rev, nrow = 1, 
-                    labels = c("A", "B", "C"), 
-                    widths=c(0.8,1,1),
-                    label.y=c(1, 0.1, 0.1)) )
-}
-
-# prepare three-panel results figure: data, irreversible fit, reversible fit
-results.fig.pruned = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
   
   if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
     message("WARNING: irreversible fit didn't converge!")
@@ -393,11 +351,16 @@ results.fig.pruned = function(combined.obj, label="", flux.threshold.pmax = 0.01
 }
 
 ### simple demo of pruning and refitting
+# simple synthetic cross-sectional dataset
 dset = setup.data("cross.sectional.single")
+
+# unpruned inference; all edges are parameters
 mk.out.irrev = mk.inference(dset$tree, dset$L, 
                             use.priors=TRUE, dset$tips, 
                             reversible = FALSE,
                             Ntrials = 1)
+
+# prune a specific edge (here, corresponding to one alternative pathway)
 blanks = matrix(c(1,2), nrow=1, ncol=2, byrow = TRUE)
 mk.out.irrev2 = mk.inference(dset$tree, dset$L, 
                              use.priors=TRUE, dset$tips, 
@@ -405,31 +368,38 @@ mk.out.irrev2 = mk.inference(dset$tree, dset$L,
                              Ntrials = 1,
                              to.nullify=blanks)
 
+# get a set of edges to prune, corresponding to zero-flux edges in the previous example
 to.nullify = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
 mk.out.irrev3 = mk.inference(dset$tree, dset$L, 
                              use.priors=TRUE, dset$tips, 
                              reversible = FALSE,
                              Ntrials = 1,
                              to.nullify=to.nullify)
-mk.out.irrev$fitted_mk$AIC
-mk.out.irrev2$fitted_mk$AIC
-mk.out.irrev3$fitted_mk$AIC
+
+# graphically compare these (with AICs)
+ggarrange(mk.inference.plot(mk.out.irrev),
+          mk.inference.plot(mk.out.irrev2),
+          mk.inference.plot(mk.out.irrev3), nrow=1)
 
 ##### run the set of experiments
+# produce and style output plots
+# 1 "cross.sectional.single", 2 "cross.sectional.many", 3 "single", 4 "single.rev", 
+# 5 "single.uncertain", 6 "cross.sectional.cross",
+# 7 "ovarian", 8 "TB"
+
 nexpts = 6
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
                               SIMPLIFY = FALSE,
                               mc.cores = min(detectCores(), nexpts))
 
-# produce and style output plots
 pmaxs = c(0.03, 0.03, 0.05, 0.02, 0.02, 0.05, 0.05, 0.05)
 pmaxs = rep(0,8)
 obls = rep(FALSE, 8); obls[7] = TRUE
 fig.list = list()
 sf = 2
 for(i in 1:nexpts) {
-  fig.list[[i]] = results.fig.pruned(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
+  fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
   png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()

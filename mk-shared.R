@@ -315,6 +315,16 @@ plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
   }
 }
 
+# plot the output of one mk.inference experiment
+mk.inference.plot = function(fitted.obj, flux.threshold = 0) {
+  L = log2(fitted.obj$fitted_mk$Nstates)
+  AIC.val = round(fitted.obj$fitted_mk$AIC, digits=1) #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
+  title.val = paste0("AIC = ", AIC.val, collapse = "")
+  flux.threshold.scale = flux.threshold*max(fitted.obj$mk_fluxes$Flux)
+  return(plot.hypercube2(fitted.obj$mk_fluxes[fitted.obj$mk_fluxes$Flux > flux.threshold.scale,], L) +
+           ggtitle(title.val) )
+}
+
 # general wrapper function for HyperMk inference
 # takes tree, number of features, whether to use priors (vs specific states), tip labels (priors or states), and whether to run reversible model or not
 # returns the fitted model with summary dataframes of transitions and fluxes
