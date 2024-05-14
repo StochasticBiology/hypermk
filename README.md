@@ -41,7 +41,7 @@ Specifically:
 |----------|------------ |
 | `setup.data` | prepares data for a collection of synthetic and experimental case studies |
 | `parallel.fn` | wraps an experiment for a given dataset, calling `mk.inference` for reversible and irreversible, pruned and raw fits, and producing a combined object for plotting |
-| results.fig` | plots these combined objects |
+| `results.fig` | plots these combined objects |
 
 
 
