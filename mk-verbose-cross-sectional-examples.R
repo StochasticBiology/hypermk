@@ -1,3 +1,6 @@
+## FIXME: once changes in this branch are considered definitive,
+##       use the refit-prune strategy in the examples below.
+
 ## Verbose example for cross-sectional data modified from
 ## mk-timing.R, mk-cgh.R, mk-collection.R
 
