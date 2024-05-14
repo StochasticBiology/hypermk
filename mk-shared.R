@@ -330,8 +330,9 @@ mk.inference.plot = function(fitted.obj, flux.threshold = 0) {
 # returns the fitted model with summary dataframes of transitions and fluxes
 mk.inference = function(mk.tree, L, use.priors, tips, reversible, 
                         optim_max_iterations = 200, Ntrials = 1,
-                        to.nullify = matrix(nrow=0, ncol=2))
-{
+                        optim_algorithm = c("optim", "nlminb"), Nthreads = 1,
+                        to.nullify = matrix(nrow=0, ncol=2)) {
+  optim_algorithm = match.arg(optim_algorithm)
   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
   # otherwise, tips = tip.states, use.priors = FALSE
   
@@ -343,22 +344,24 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
   
   if(use.priors == TRUE) {
     # specify priors, rather than precise states, on the tips of the tree
-    fitted_mk = castor::fit_mk(mk.tree, 2**L, 
-                               tip_priors=tips, 
-                               optim_algorithm = "optim",
-                               rate_model=index_matrix, 
+    fitted_mk = castor::fit_mk(mk.tree, 2**L,
+                               tip_priors=tips,
+                               optim_algorithm = optim_algorithm,
+                               rate_model=index_matrix,
                                root_prior=c(1,rep(0, 2**L-1)),
                                optim_max_iterations = optim_max_iterations,
-                               Ntrials = Ntrials)
+                               Ntrials = Ntrials,
+                               Nthreads = Nthreads)
   } else {
     # specify precise states
-    fitted_mk = castor::fit_mk(mk.tree, 2**L, 
-                               tip_states=tips, 
-                               optim_algorithm="optim",
-                               rate_model=index_matrix, 
+    fitted_mk = castor::fit_mk(mk.tree, 2**L,
+                               tip_states=tips,
+                               optim_algorithm = optim_algorithm,
+                               rate_model=index_matrix,
                                root_prior=c(1,rep(0, 2**L-1)),
                                optim_max_iterations = optim_max_iterations,
-                               Ntrials = Ntrials)
+                               Ntrials = Ntrials,
+                               Nthreads = Nthreads)
   }
   
   if(fitted_mk$converged != TRUE) {
@@ -381,16 +384,16 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
 
 
 # simple wrapper to immediately do inference on a matrix of cross-sectional observations
-mk_infer_cross_sectional = function(m, reversible = TRUE) {
+mk_infer_cross_sectional = function(m, reversible = TRUE, ...) {
   L = ncol(m)
   # cast the matrix into a form that fit_mk will take: a collection of binary trees with root 0, one unspecified tip, and one tip corresponding to the observation
   cs.data = mk_cross_sectional(m, L)
   
   mk.tree = cs.data$tree
   tip.priors = cs.data$tips
-  mk.fit =  mk.inference(mk.tree, L, 
-                         use.priors=TRUE, tip.priors, 
-                         reversible = reversible)
+  mk.fit =  mk.inference(mk.tree, L,
+                         use.priors=TRUE, tip.priors,
+                         reversible = reversible, ...)
   return(mk.fit)
 }
 
