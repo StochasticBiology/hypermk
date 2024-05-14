@@ -18,6 +18,34 @@ Contents
 
 `Data` contains data on drug resistance evolution in tuberculosis from [4], and from the ovarian cancer CGH study [5], which are used as case studies.
 
+Specifically:
+
+`mk-shared.R`
+----
+
+| Function | Description |
+|----------|------------ |
+| `mk.inference` | fits the hypercubic Mk model of choice to a prepared dataset, simulates fluxes on the transition graph, and returns details of the fit including the parameterised hypercube |
+| `mk_index_matrix` | produces the index matrix for a given experimental design, assigning integer labels to permitted transitions between states (reversible/irreversible, specified edges removed) |
+| `mk_pull_transitions` | get the transitions from a fitted Mk model|
+| `mk_simulate_fluxes` | simulate walkers through this transition set to get fluxes on each edge|
+| `mk_phylogeny_precise` | given a set of states and a tree linking them, prepare the data for use in `mk.inference` |
+| `mk_cross_sectional` | given a set of cross-sectional states, prepare the data for use in `mk.inference` |
+| `mk_infer_cross_sectional` | simple wrapper of `mk_cross_sectional` + `mk.inference`, taking a matrix and outputting the fitted model |
+| `mk.inference.plot` | plots the output of `mk.inference` |
+
+`mk-collection.R`
+----
+
+| Function | Description |
+|----------|------------ |
+| `setup.data` | prepares data for a collection of synthetic and experimental case studies |
+| `parallel.fn` | wraps an experiment for a given dataset, calling `mk.inference` for reversible and irreversible, pruned and raw fits, and producing a combined object for plotting |
+| `results.fig` | plots these combined objects |
+
+
+
+
 References
 ---
 
