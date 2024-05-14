@@ -29,7 +29,7 @@ load("setup.data_output.RData")
 ## but this works)
 
 ## Run this BEFORE loading phytools. Set max_threads_cores to whatever is sensible
-max_threads_cores <- 30
+max_threads_cores <- 4
 Sys.getenv(c("OMP_NUM_THREADS", "OMP_THREAD_LIMIT", "OPENBLAS_NUM_THREADS"))
 Sys.setenv(OMP_NUM_THREADS = max_threads_cores)
 Sys.setenv(OMP_THREAD_LIMIT = max_threads_cores)
@@ -116,7 +116,17 @@ p_single_irrev <- phytools::fitMk(tree = g_s_tree,
 
 p_single_irrev
 
+# IGJ addition -- coerce into form that can be analysed and plotted with existing functions
+p_single_irrev$transition_matrix = p_single_irrev$index.matrix
+for(i in 1:length(p_single_irrev$rates)) {
+  p_single_irrev$transition_matrix[p_single_irrev$transition_matrix==i] = p_single_irrev$rates[i]  
+}
+p_single_irrev.trans = mk_pull_transitions(p_single_irrev, reversible = FALSE)
+p_single_irrev.fluxes = mk_simulate_fluxes(p_single_irrev, 5, reversible=FALSE) 
+plot.hypercube2(p_single_irrev.fluxes, 5)
+
 save(file = "phytools_single_irrev.RData", p_single_irrev)
+
 
 ## The plot is too busy and takes long to load
 ## plot(p_single_irrev)
