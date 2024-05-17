@@ -37,14 +37,17 @@ setup.data = function(expt) {
       # cross-sectional data, supporting two competing pathways (set up for L=3)
       # fig-2.png; Figure 4 of current ms
       L = 4
-
+      ## CRASH
+      cat("\n        inside the if with seed ", this_seed, "\n")
+      set.seed(this_seed)
+      ## sample.size = 10
       m = matrix(c(0,0,0,1,
                    0,0,1,1,
                    0,1,1,1,
                    1,0,0,0,
                    1,1,0,0,
                    1,1,1,0), ncol=L, byrow=TRUE)
-
+      m_in_global_env <<- m
     }
 
     if(expt == "ovarian") {
@@ -278,7 +281,7 @@ parallel.fn = function(fork) {
                "ovarian", "TB") # fig-3.png
 
   expt = expt.set[fork]
-  cat("\n  Insider parallel.fn. Doing expt = ", expt, "\n")
+  cat("\n  Inside parallel.fn. Doing expt = ", expt, "\n")
   # get the data structure for this case
   dset = setup.data(expt)
 

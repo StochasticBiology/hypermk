@@ -278,7 +278,7 @@ parallel.fn = function(fork) {
                "ovarian", "TB") # fig-3.png
 
   expt = expt.set[fork]
-  cat("\n  Insider parallel.fn. Doing expt = ", expt, "\n")
+  cat("\n  Inside parallel.fn. Doing expt = ", expt, "\n")
   # get the data structure for this case
   dset = setup.data(expt)
 
