@@ -450,8 +450,8 @@ for(i in 1:nexpts) {
 ##   4 -> single.rev
 ##   5 -> single.uncertain
 ##   6 -> cross.sectional.cross
-##   7 -> TB
-##   8 -> ovarian
+##   7 -> ovarian
+##   8 -> TB
 
 ## See the mapping as:
 ## bpfn <- body(parallel.fn)
