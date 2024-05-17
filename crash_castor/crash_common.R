@@ -23,7 +23,8 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
 
   # do the Mk model fitting
   # remember the (deterministic) prior on the root state! this is important
-
+  ## Uncomment to generate data for reproducible crashes
+  ## browser()
   if(use.priors == TRUE) {
     # specify priors, rather than precise states, on the tips of the tree
     fitted_mk = castor::fit_mk(mk.tree, 2**L,
