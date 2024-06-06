@@ -1,9 +1,9 @@
 ### Packages
-library(phytools)
-library(geiger)
-library(corHMM)
+require(phytools)
+require(geiger)
+require(corHMM)
 setwd("..")
-source("mk-collection.R")
+source("mk-specifics.R")
 setwd("other_methods")
 
 ###############
