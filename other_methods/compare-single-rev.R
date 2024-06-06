@@ -6,11 +6,13 @@ setwd("..")
 source("mk-specifics.R")
 setwd("other_methods")
 
+# issues so far: phytools doesn't seem to capture one of the observed states (110)
+# how to force corHMM to be irreversible?
+
 ###############
 ####### Phylogenetic data: single reversible case study
 
 data.set = setup.data("single.rev")
-L = 5
 
 # simple constructed case study
 set.seed(1)
@@ -53,7 +55,15 @@ mk.out.rev = mk.inference(data.set$tree, data.set$L,
                           Ntrials = 1,
                           Nthreads = 1)
 
-g.castor = plot.hypercube2(mk.out.rev$mk_fluxes, L)
+mk.out.irrev = mk.inference(data.set$tree, data.set$L, 
+                          use.priors = FALSE, data.set$tips, 
+                          reversible = FALSE,
+                          optim_max_iterations = 2000,
+                          Ntrials = 1,
+                          Nthreads = 1)
+
+g.castor.rev = plot.hypercube2(mk.out.rev$mk_fluxes, L)
+g.castor.irrev = plot.hypercube2(mk.out.irrev$mk_fluxes, L)
 
 ###############
 #### for phytools core
@@ -75,6 +85,24 @@ g_s_dat = data.set$x.decimal
 g_s_tree = data.set$tree
 x_mat <- dec_vector_to_matrix(g_s_dat, 2**L)
 
+# irreversible case
+mmp <- mk_index_matrix(L, reversible=FALSE)
+colnames(mmp) <- rownames(mmp) <-  seq_len(nrow(mmp))
+
+p_single_irrev <- phytools::fitMk(tree = g_s_tree,
+                                  x = x_mat,
+                                  model = mmp,
+                                  pi = c(1, rep(0, 31)))
+
+# IGJ addition -- coerce into form that can be analysed and plotted with existing functions
+p_single_irrev$transition_matrix = p_single_irrev$index.matrix
+for(i in 1:length(p_single_irrev$rates)) {
+  p_single_irrev$transition_matrix[p_single_irrev$transition_matrix==i] = p_single_irrev$rates[i]  
+}
+p_single_irrev.trans = mk_pull_transitions(p_single_irrev, reversible = FALSE)
+p_single_irrev.fluxes = mk_simulate_fluxes(p_single_irrev, L, reversible=FALSE) 
+
+# reversible case
 mmpr <- mk_index_matrix(L, reversible=TRUE)
 colnames(mmpr) <- rownames(mmpr) <-  seq_len(nrow(mmpr))
 
@@ -91,7 +119,9 @@ for(i in 1:length(p_single_rev$rates)) {
 p_single_rev.trans = mk_pull_transitions(p_single_rev, reversible = TRUE)
 p_single_rev.fluxes = mk_simulate_fluxes(p_single_rev, L, reversible=TRUE) 
 
-g.phytools = plot.hypercube2(p_single_rev.fluxes, L)
+# plots
+g.phytools.irrev = plot.hypercube2(p_single_irrev.fluxes, L)
+g.phytools.rev = plot.hypercube2(p_single_rev.fluxes, L)
 
 ###############
 #### for corHMM core
@@ -129,4 +159,13 @@ fitted.mk.c$loglik
 p_single_rev$logLik
 mk.out.rev$fitted_mk$loglikelihood
 
-ggarrange(g.castor, g.phytools, g.corHMM)
+p_single_irrev$logLik
+mk.out.irrev$fitted_mk$loglikelihood
+
+sf = 2
+png("compare-set.png", width=800*sf, height=500*sf, res=72*sf)
+ggarrange(g.castor.irrev, g.phytools.irrev, g.corHMM,
+          g.castor.rev, g.phytools.rev,
+          labels = c("A. castor irrev", "B. phytools irrev", "C. corHMM",
+                     "D. castor rev", "E. phytools rev"))
+dev.off()
