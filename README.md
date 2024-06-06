@@ -13,7 +13,7 @@ Contents
 * `mk-shared.R` contains a set of common functions for labelling and plotting, as well as for creating the matrices for specifying parameter forms for HyperMk
 * `mk-specifics.R` contains a set of helper functions for creating and analysing a set of synthetic and real-world examples, including analysis of a cross-sectional ovarian cancer dataset and a phylogenetic TB dataset.
 * `mk-collection.R` runs inference on these synthetic and real-world examples
-* `other_methods/compare-single-rev.R` demonstrates the use of alternative fitting approaches for the core functionality
+* `other_methods/compare-single.R` demonstrates the use of alternative fitting approaches for the core functionality
 * `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation.
 * `mk-verbose-cross-sectional-examples.R` contains small, heavily commented
   cross-sectional examples.
