@@ -7,11 +7,16 @@ source("mk-specifics.R")
 # minimum value is 1 -- use this if computer time is limiting
 Ntrials = 1
 
+# For a single run:
 # If the computer has multiple cores, using Nthreads will decrease running time
 # when Ntrials > 1 (if Nthreads = Ntrials, running time will be about the same as
-## for Ntrials = 1). By default, set Nthreads to Ntrials, unless thee are fewer
+## for Ntrials = 1). By default, set Nthreads to Ntrials, unless there are fewer
 # cores
-Nthreads = min(Ntrials, parallel::detectCores() - 1)
+#Nthreads = min(Ntrials, parallel::detectCores() - 1)
+# For the parallelised case studies below, we will assign each case study to
+# a different core (if available), so will avoid forking threads within these
+# parallel processes
+Nthreads = 1
 
 ### simple demo of pruning and refitting
 # simple synthetic cross-sectional dataset
@@ -40,9 +45,13 @@ mk.out.irrev3 = mk.inference(dset$tree, dset$L,
                              to.nullify=to.nullify)
 
 # graphically compare these (with AICs)
+sf = 2
+png("fig-pruning.png", width=600*sf, height=400*sf, res=72*sf)
 ggarrange(mk.inference.plot(mk.out.irrev),
           mk.inference.plot(mk.out.irrev2),
-          mk.inference.plot(mk.out.irrev3), nrow=1)
+          mk.inference.plot(mk.out.irrev3), 
+          nrow=1, labels=c("A", "B", "C"), label.y=0.1)
+dev.off()
 
 ##### run the set of experiments
 # produce and style output plots
@@ -50,6 +59,7 @@ ggarrange(mk.inference.plot(mk.out.irrev),
 # 5 "single.uncertain", 6 "cross.sectional.cross",
 # 7 "ovarian", 8 "TB"
 
+# by default, we'll only run the quickest experiments (1-6); increase to 8 for the long haul
 nexpts = 6
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
