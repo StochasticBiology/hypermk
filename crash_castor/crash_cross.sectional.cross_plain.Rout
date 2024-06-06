@@ -1,7 +1,7 @@
 
-R version 4.3.3 Patched (2024-02-29 r86099) -- "Angel Food Cake"
+R version 4.4.0 Patched (2024-05-14 r86559) -- "Puppy Cup"
 Copyright (C) 2024 The R Foundation for Statistical Computing
-Platform: x86_64-pc-linux-gnu (64-bit)
+Platform: x86_64-pc-linux-gnu
 
 R is free software and comes with ABSOLUTELY NO WARRANTY.
 You are welcome to redistribute it under certain conditions.
@@ -34,8 +34,7 @@ Type 'q()' to quit R.
 > ## I haven't been able to find a seed that will crash it with a single
 > ## Ntrials.
 > 
-> 
-> source("mk-shared.R")
+> source("crash_common.R")
 Loading required package: Rcpp
 
 Attaching package: ‘igraph’
@@ -63,7 +62,7 @@ The following object is masked from ‘package:ape’:
 
     rotate
 
-ggtree v3.10.1 For help: https://yulab-smu.top/treedata-book/
+ggtree v3.13.0 For help: https://yulab-smu.top/treedata-book/
 
 If you use the ggtree package suite in published research, please cite
 the appropriate paper(s):
@@ -73,11 +72,14 @@ ggtree: an R package for visualization and annotation of phylogenetic
 trees with their covariates and other associated data. Methods in
 Ecology and Evolution. 2017, 8(1):28-36. doi:10.1111/2041-210X.12628
 
-Guangchuang Yu. Using ggtree to visualize data on tree-like structures.
-Current Protocols in Bioinformatics. 2020, 69:e96. doi:10.1002/cpbi.96
+S Xu, Z Dai, P Guo, X Fu, S Liu, L Zhou, W Tang, T Feng, M Chen, L
+Zhan, T Wu, E Hu, Y Jiang, X Bo, G Yu. ggtreeExtra: Compact
+visualization of richly annotated phylogenetic data. Molecular Biology
+and Evolution. 2021, 38(9):4039-4042. doi: 10.1093/molbev/msab166
 
-G Yu. Data Integration, Manipulation and Visualization of Phylogenetic
-Trees (1st ed.). Chapman and Hall/CRC. 2022. ISBN: 9781032233574
+Guangchuang Yu.  Data Integration, Manipulation and Visualization of
+Phylogenetic Trees (1st edition). Chapman and Hall/CRC. 2022,
+doi:10.1201/9781003279242
 
 Attaching package: ‘ggtree’
 
@@ -89,79 +91,16 @@ The following object is masked from ‘package:ape’:
 
     rotate
 
-> require(parallel)
 Loading required package: parallel
 > 
-> ## redefine, to show debug output
-> mk.inference = function(mk.tree, L, use.priors, tips, reversible, optim_max_iterations = 200, Ntrials = 1, optim_algorithm = c("optim", "nlminb"), Nthreads = 1)
-+ {
-+   optim_algorithm = match.arg(optim_algorithm)
-+   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
-+   # otherwise, tips = tip.states, use.priors = FALSE
-+   
-+   # construct matrix describing possible transitions
-+   index_matrix = mk_index_matrix(L, reversible=reversible)
-+   
-+   # do the Mk model fitting
-+   # remember the (deterministic) prior on the root state! this is important
-+   
-+   if(use.priors == TRUE) {
-+     # specify priors, rather than precise states, on the tips of the tree
-+     fitted_mk = castor::fit_mk(mk.tree, 2**L,
-+                                tip_priors=tips,
-+                                optim_algorithm = optim_algorithm,
-+                                rate_model=index_matrix,
-+                                root_prior=c(1,rep(0, 2**L-1)),
-+                                optim_max_iterations = optim_max_iterations,
-+                                Ntrials = Ntrials,
-+                                Nthreads = Nthreads,
-+                                verbose = TRUE, diagnostics = TRUE)
-+   } else {
-+     # specify precise states
-+     fitted_mk = castor::fit_mk(mk.tree, 2**L,
-+                                tip_states=tips,
-+                                optim_algorithm = optim_algorithm,
-+                                rate_model=index_matrix,
-+                                root_prior=c(1,rep(0, 2**L-1)),
-+                                optim_max_iterations = optim_max_iterations,
-+                                Ntrials = Ntrials,
-+                                Nthreads = Nthreads)
-+   }
-+   
-+   if(fitted_mk$converged != TRUE) {
-+     message("WARNING: Mk model fit didn't converge!")
-+   }
-+   
-+   # convert inferred rate matrix into transition set
-+   mk_df = mk_pull_transitions(fitted_mk, reversible = reversible)
-+   # and simulate fluxes through this transition set
-+   mk_fluxes = mk_simulate_fluxes(fitted_mk, L, reversible = reversible)
-+   
-+   # return a list of useful info
-+   l.return = list(fitted_mk = fitted_mk, 
-+                   reversible = reversible, 
-+                   mk_df = mk_df, 
-+                   mk_fluxes = mk_fluxes)  
-+   
-+   return(l.return)
-+ }
 > 
-> 
-> # the longest case study here (TB) takes >1hr on a modern machine to fit one instance of the reversible model
-> # using more trials increases the chance we find the global optimum, but will multiply this runtime
-> # minimum value is 1 -- use this if computer time is limiting
 > Ntrials = 2
-> 
-> # If the computer has multiple cores, using Nthreads will decrease running time
-> # when Ntrials > 1 (if Nthreads = Ntrials, running time will be about the same as
-> ## for Ntrials = 1). By default, set Nthreads to Ntrials, unless thee are fewer
-> # cores
 > Nthreads = 1
 > 
 > # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 > # argument specifies the particular case to produce
 > setup.data = function(expt) {
-+   ## set.seed(1)
++   set.seed(1)
 + 
 +   # cross-sectional cases -- use the mk_cross_sectional function to get a set of trees and tip priors for a given matrix
 +   if(expt == "cross.sectional.single" |
@@ -204,7 +143,7 @@ Loading required package: parallel
 + 
 +       m = m[sample(1:nrow(m), sample.size, replace = TRUE), ]
 +       m_in_global_env <<- m
-+       
++ 
 +       print(m)
 +     }
 + 
@@ -239,6 +178,9 @@ Loading required package: parallel
 + 
 +   ####### random tree with random, single-pathway dynamics
 +   if(expt == "single" || expt == "single.rev" || expt == "single.uncertain") {
++     cat("\n        inside the if single.uncertain with seed ", this_seed, "\n")
++     set.seed(this_seed)
++ 
 +     # single and single.rev in fig-1.png 1, Figure 3 of current ms.
 +     # single.uncertain in fig-2.png, Figure 4 of current ms.
 +     L = 5
@@ -433,10 +375,10 @@ Loading required package: parallel
 +                "single", "single.rev", # fig-1.png; Figure 3 of current ms.
 +                "single.uncertain", # fig-2.png; Figure 4 of current ms.
 +                "cross.sectional.cross", # fig-2.png; Figure 4 of current ms.
-+                "TB", "ovarian") # fig-3.png
++                "ovarian", "TB") # fig-3.png
 + 
 +   expt = expt.set[fork]
-+ 
++   cat("\n  Inside parallel.fn. Doing expt = ", expt, "\n")
 +   # get the data structure for this case
 +   dset = setup.data(expt)
 + 
@@ -450,29 +392,47 @@ Loading required package: parallel
 + 
 +   # irreversible model fit
 +   print("irreversible")
++   cat("\n        inside irreversible with seed ", this_seed, "\n")
 +   set.seed(this_seed)
-+   cat("\n              irreversible with seed ", this_seed, "\n")
 +   mk.out.irrev = mk.inference(dset$tree, dset$L,
 +                               use.priors, dset$tips,
 +                               reversible = FALSE,
 +                               Ntrials = Ntrials,
 +                               Nthreads = Nthreads)
++   to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
++   print("irreversible pruned")
++   mk.out.irrev.pruned = mk.inference(dset$tree, dset$L,
++                                      use.priors, dset$tips,
++                                      reversible = FALSE,
++                                      Ntrials = Ntrials,
++                                      to.nullify = to.nullify.irrev)
++ 
 +   # reversible model fit
 +   print("reversible")
-+   ## browser()
++   cat("\n        inside reversible with seed ", this_seed, "\n")
 +   set.seed(this_seed)
-+   cat("\n             irreversible with seed  ", this_seed, "\n")
 +   mk.out.rev = mk.inference(dset$tree, dset$L,
 +                             use.priors, dset$tips,
 +                             reversible = TRUE,
 +                             optim_max_iterations = 2000,
 +                             Ntrials = Ntrials,
 +                             Nthreads = Nthreads)
++   to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux==0),1:2]+1
++   print("reversible pruned")
++   mk.out.rev.pruned = mk.inference(dset$tree, dset$L,
++                                    use.priors, dset$tips,
++                                    reversible = TRUE,
++                                    optim_max_iterations = 2000,
++                                    Ntrials = Ntrials,
++                                    to.nullify = to.nullify.rev)
 + 
-+   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev)
++   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev,
++                   mk.out.irrev.pruned=mk.out.irrev.pruned, mk.out.rev.pruned=mk.out.rev.pruned)
++ 
 +   return(l.return)
 + }
 > 
+> ## specific to the parallel implementation here:
 > # prepare three-panel results figure: data, irreversible fit, reversible fit
 > results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
 + 
@@ -482,12 +442,17 @@ Loading required package: parallel
 +   if(combined.obj$mk.out.rev$fitted_mk$converged != TRUE) {
 +     message("WARNING: reversible fit didn't converge!")
 +   }
-+ 
-+   graph.df.rev = combined.obj$mk.out.rev$mk_fluxes
++   if(combined.obj$mk.out.irrev.pruned$fitted_mk$converged != TRUE) {
++     message("WARNING: irreversible pruned fit didn't converge!")
++   }
++   if(combined.obj$mk.out.rev.pruned$fitted_mk$converged != TRUE) {
++     message("WARNING: reversible pruned fit didn't converge!")
++   }
++   graph.df.rev = combined.obj$mk.out.rev.pruned$mk_fluxes
 +   L = combined.obj$dset$L
 + 
 +   AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
-+   AIC.rev.reduced = AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
++   AIC.rev.reduced = combined.obj$mk.out.rev.pruned$fitted_mk$AIC #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
 +   title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2),
 +                      " (full ", round(AIC.rev, digits=2), ")", collapse = "")
 +   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
@@ -495,11 +460,11 @@ Loading required package: parallel
 +     ggtitle(title.rev)
 + 
 +   AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
-+   AIC.irrev.reduced = AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
++   AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$fitted_mk$AIC #AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
 +   title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2),
 +                        " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
 + 
-+   graph.df.irrev = combined.obj$mk.out.irrev$mk_fluxes
++   graph.df.irrev = combined.obj$mk.out.irrev.pruned$mk_fluxes
 +   flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
 +   g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
 +     ggtitle(title.irrev)
@@ -524,6 +489,8 @@ Loading required package: parallel
  Doing this_seed =  100008 
 > parallel.fn(6)
 
+  Inside parallel.fn. Doing expt =  cross.sectional.cross 
+
         inside the if with seed  100008 
       [,1] [,2] [,3] [,4]
  [1,]    0    0    0    1
@@ -538,7 +505,7 @@ Loading required package: parallel
 [10,]    0    1    1    1
 [1] "irreversible"
 
-              irreversible with seed  100008 
+        inside irreversible with seed  100008 
 Checking input variables..
   First guess rate: 3.4
 Generating 640 random parameter starts and selecting the most promising ones..

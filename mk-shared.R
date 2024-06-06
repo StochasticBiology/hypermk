@@ -398,3 +398,18 @@ mk_infer_cross_sectional = function(m, reversible = TRUE, ...) {
 }
 
 
+## FIXME:
+## Questions:
+##  - why are there sometimes estimates of rates for impossible transitions?
+##  - would we want to remove those rates from the mk_pull_transitions
+##    output? (i.e., remove anything involving a non-reachable state
+##    --- I think this is easy in irreversible case,
+##    and doable in the reversible---); though maybe looking at fluxes
+##    is good enough? Would removing them make the simulate_fluxes code
+##    faster? Would this speed increase even matter?
+
+
+## FIXME: is there a -1 in the rate of self-transitions in reversible
+## model and not irreversible? I understand why they are -1
+## but why do something different for reversible and irreversible?
+## See note in mk-shared, function mk_pull_transitions.
