@@ -11,7 +11,9 @@ Contents
 ---
 
 * `mk-shared.R` contains a set of common functions for labelling and plotting, as well as for creating the matrices for specifying parameter forms for HyperMk
-* `mk-collection.R` creates a set of synthetic examples and demonstrates inference using HyperMk. Includes analysis of a cross-sectional ovarian cancer dataset and a phylogenetic TB dataset.
+* `mk-specifics.R` contains a set of helper functions for creating and analysing a set of synthetic and real-world examples, including analysis of a cross-sectional ovarian cancer dataset and a phylogenetic TB dataset.
+* `mk-collection.R` runs inference on these synthetic and real-world examples
+* `other_methods/compare-single-rev.R` demonstrates the use of alternative fitting approaches for the core functionality
 * `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation.
 * `mk-verbose-cross-sectional-examples.R` contains small, heavily commented
   cross-sectional examples.
@@ -34,7 +36,7 @@ Specifically:
 | `mk_infer_cross_sectional` | simple wrapper of `mk_cross_sectional` + `mk.inference`, taking a matrix and outputting the fitted model |
 | `mk.inference.plot` | plots the output of `mk.inference` |
 
-`mk-collection.R`
+`mk-specifics.R`
 ----
 
 | Function | Description |
@@ -42,8 +44,6 @@ Specifically:
 | `setup.data` | prepares data for a collection of synthetic and experimental case studies |
 | `parallel.fn` | wraps an experiment for a given dataset, calling `mk.inference` for reversible and irreversible, pruned and raw fits, and producing a combined object for plotting |
 | `results.fig` | plots these combined objects |
-
-
 
 
 References
