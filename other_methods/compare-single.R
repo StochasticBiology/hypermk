@@ -12,6 +12,8 @@ setwd("other_methods")
 ###############
 ####### Phylogenetic data: single reversible case study
 
+# just call this function to create an object with the standard format for a dataset
+# the actual data will be overwritten by the specific case below
 data.set = setup.data("single.rev")
 
 # simple constructed case study
@@ -125,9 +127,11 @@ g.phytools.rev = plot.hypercube2(p_single_rev.fluxes, L)
 
 ###############
 #### for corHMM core
+
 data.set$tree$tip.label = 1:length(data.set$tree$tip.label)
 data.set$obs = data.frame(species=data.set$tree$tip.label, data.set$x.binary)
 
+# fit without explicitly considering all binary states
 # do the fitting
 fitted.mk.c = corHMM(data.set$tree, data.set$obs, rate.cat=1)
 
@@ -155,17 +159,51 @@ fitted.mk.c.fluxes = mk_simulate_fluxes(fitted.mk.c, L, reversible=TRUE)
 
 g.corHMM = plot.hypercube2(fitted.mk.c.fluxes, L)
 
-fitted.mk.c$loglik
+# irreversible case
+# do the fitting
+fitted.mk.c.rev = corHMM(data.set$tree, data.set$obs, rate.cat=1, 
+                         rate.mat = mmpr, collapse = FALSE)
+
+# pull the transition matrix
+tmp = fitted.mk.c.rev$solution
+tmp[is.na(tmp)] = 0
+fitted.mk.c.rev$transition_matrix = tmp
+
+fitted.mk.c.rev.trans = mk_pull_transitions(fitted.mk.c.rev, reversible = TRUE)
+fitted.mk.c.rev.fluxes = mk_simulate_fluxes(fitted.mk.c.rev, L, reversible=TRUE) 
+
+g.corHMM.rev = plot.hypercube2(fitted.mk.c.rev.fluxes, L)
+
+# try forcing irreversibility by changing the allowed rate matrix
+
+fitted.mk.c.irrev = corHMM(data.set$tree, data.set$obs, rate.cat=1, 
+                           rate.mat = mmp, collapse = FALSE)
+
+# pull the transition matrix
+tmp = fitted.mk.c.irrev$solution
+tmp[is.na(tmp)] = 0
+fitted.mk.c.irrev$transition_matrix = tmp
+
+fitted.mk.c.irrev.trans = mk_pull_transitions(fitted.mk.c.irrev, reversible = TRUE)
+fitted.mk.c.irrev.fluxes = mk_simulate_fluxes(fitted.mk.c.irrev, L, reversible=TRUE) 
+
+g.corHMM.irrev = plot.hypercube2(fitted.mk.c.irrev.fluxes, L)
+
+fitted.mk.c.rev$loglik
 p_single_rev$logLik
 mk.out.rev$fitted_mk$loglikelihood
 
+fitted.mk.c.irrev$loglik
 p_single_irrev$logLik
 mk.out.irrev$fitted_mk$loglikelihood
 
 sf = 2
-png("compare-set.png", width=800*sf, height=500*sf, res=72*sf)
-ggarrange(g.castor.irrev, g.phytools.irrev, g.corHMM,
-          g.castor.rev, g.phytools.rev,
-          labels = c("A. castor irrev", "B. phytools irrev", "C. corHMM",
-                     "D. castor rev", "E. phytools rev"))
+png("compare-set.png", width=800*sf, height=800*sf, res=72*sf)
+ggarrange(g.castor.irrev, g.corHMM.irrev, g.phytools.irrev, 
+          g.castor.rev, g.corHMM, g.phytools.rev, 
+          g.corHMM.rev,
+          labels = c("A. castor irrev", "B. corHMM irrev", "C. phytools irrev", 
+                     "D. castor rev", "E. corHMM default", "F. phytools rev", 
+                     "G. corHMM rev"),
+          ncol=3,nrow=3)
 dev.off()
