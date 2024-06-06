@@ -1,14 +1,14 @@
 # shared library loads and helper function for Mk model project
 
-library(ape)
-library(phangorn)
-library(castor)
-library(igraph)
-library(ggplot2)
-library(ggraph)
-library(stringr)
-library(ggpubr)
-library(ggtree)
+require(ape)
+require(phangorn)
+require(castor)
+require(igraph)
+require(ggplot2)
+require(ggraph)
+require(stringr)
+require(ggpubr)
+require(ggtree)
 
 ## Functions from the above packages called explicitly 
 ## ape:
