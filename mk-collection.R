@@ -61,6 +61,7 @@ dev.off()
 
 # by default, we'll only run the quickest experiments (1-6); increase to 8 for the long haul
 nexpts = 6
+Ntrials = 3
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
                               SIMPLIFY = FALSE,
@@ -73,11 +74,17 @@ fig.list = list()
 sf = 2
 for(i in 1:nexpts) {
   fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
-  png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
+  png(paste0("7-expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()
 }
 
+expt = 6
+results.fig(parallelised.runs[[expt]], omit.branch.lengths = obls[expt], flux.threshold.pmax = pmaxs[expt])
+
+Ntrials = 3
+tmp = parallel.fn(2)
+results.fig(tmp, flux.threshold.pmax = 0)
 
 ##### If you only want to run a subset of the experiments
 ##   Change the indices passed to argument fork in the call to
