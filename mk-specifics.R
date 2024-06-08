@@ -284,36 +284,48 @@ parallel.fn = function(fork) {
   }
   
   # irreversible model fit
-  print("irreversible")
+  message("Irreversible model")
   mk.out.irrev = mk.inference(dset$tree, dset$L, 
                               use.priors, dset$tips, 
                               reversible = FALSE,
                               Ntrials = Ntrials,
-                              Nthreads = Nthreads)
-  to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
-  print("irreversible pruned")
+                              Nthreads = Nthreads,
+                              flux.samples = 100000)
+  mk.out.irrev$myAIC = mk.out.irrev$fitted_mk$AIC
+    
+  to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flu<1000),1:2]+1
+  message("Irreversible model, pruned")
   mk.out.irrev.pruned = mk.inference(dset$tree, dset$L, 
                                      use.priors, dset$tips, 
                                      reversible = FALSE,
                                      Ntrials = Ntrials,
                                      to.nullify = to.nullify.irrev)
+  nonzeroes = length(which(mk.out.irrev.pruned$fitted_mk$transition_matrix!=0))
+  nonzeroes.diag = length(which(diag(mk.out.irrev.pruned$fitted_mk$transition_matrix)!=0))
+  mk.out.irrev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.irrev.pruned$fitted_mk$loglikelihood
   
   # reversible model fit
-  print("reversible")
+  message("Reversible model")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
                             use.priors, dset$tips, 
                             reversible = TRUE,
                             optim_max_iterations = 2000,
                             Ntrials = Ntrials,
-                            Nthreads = Nthreads)
-  to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux==0),1:2]+1
-  print("reversible pruned")
+                            Nthreads = Nthreads,
+                            flux.samples = 100000)
+  mk.out.rev$myAIC = mk.out.rev$fitted_mk$AIC
+  
+  to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux<1000),1:2]+1
+  message("Reversible model, pruned")
   mk.out.rev.pruned = mk.inference(dset$tree, dset$L, 
                                    use.priors, dset$tips, 
                                    reversible = TRUE,
                                    optim_max_iterations = 2000,
                                    Ntrials = Ntrials,
                                    to.nullify = to.nullify.rev)
+  nonzeroes = length(which(mk.out.rev.pruned$fitted_mk$transition_matrix!=0))
+  nonzeroes.diag = length(which(diag(mk.out.rev.pruned$fitted_mk$transition_matrix)!=0))
+  mk.out.rev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.rev.pruned$fitted_mk$loglikelihood
   
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev,
                   mk.out.irrev.pruned=mk.out.irrev.pruned, mk.out.rev.pruned=mk.out.rev.pruned)
@@ -340,16 +352,16 @@ results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.
   graph.df.rev = combined.obj$mk.out.rev.pruned$mk_fluxes
   L = combined.obj$dset$L
   
-  AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
-  AIC.rev.reduced = combined.obj$mk.out.rev.pruned$fitted_mk$AIC #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
+  AIC.rev = combined.obj$mk.out.rev$myAIC
+  AIC.rev.reduced = combined.obj$mk.out.rev.pruned$myAIC #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
   title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2), 
                      " (full ", round(AIC.rev, digits=2), ")", collapse = "")
   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
   g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
     ggtitle(title.rev)
   
-  AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
-  AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$fitted_mk$AIC #AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
+  AIC.irrev = combined.obj$mk.out.irrev$myAIC
+  AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$myAIC #AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
   title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2), 
                        " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
   
