@@ -61,7 +61,7 @@ dev.off()
 
 # by default, we'll only run the quickest experiments (1-6); increase to 8 for the long haul
 nexpts = 6
-Ntrials = 3
+Ntrials = 1
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
                               SIMPLIFY = FALSE,
@@ -74,7 +74,7 @@ fig.list = list()
 sf = 2
 for(i in 1:nexpts) {
   fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
-  png(paste0("7-expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
+  png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()
 }
