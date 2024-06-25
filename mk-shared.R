@@ -331,7 +331,8 @@ mk.inference.plot = function(fitted.obj, flux.threshold = 0) {
 mk.inference = function(mk.tree, L, use.priors, tips, reversible, 
                         optim_max_iterations = 200, Ntrials = 1,
                         optim_algorithm = c("optim", "nlminb"), Nthreads = 1,
-                        to.nullify = matrix(nrow=0, ncol=2)) {
+                        to.nullify = matrix(nrow=0, ncol=2),
+                        flux.samples = 10000) {
   optim_algorithm = match.arg(optim_algorithm)
   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
   # otherwise, tips = tip.states, use.priors = FALSE
@@ -342,6 +343,7 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
   # do the Mk model fitting
   # remember the (deterministic) prior on the root state! this is important
   
+  message("fitting model")
   if(use.priors == TRUE) {
     # specify priors, rather than precise states, on the tips of the tree
     fitted_mk = castor::fit_mk(mk.tree, 2**L,
@@ -368,10 +370,11 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
     message("WARNING: Mk model fit didn't converge!")
   }
   
+  message("simulating fluxes")
   # convert inferred rate matrix into transition set
   mk_df = mk_pull_transitions(fitted_mk, reversible = reversible)
   # and simulate fluxes through this transition set
-  mk_fluxes = mk_simulate_fluxes(fitted_mk, L, reversible = reversible)
+  mk_fluxes = mk_simulate_fluxes(fitted_mk, L, reversible = reversible, nwalker=flux.samples)
   
   # return a list of useful info
   l.return = list(fitted_mk = fitted_mk, 

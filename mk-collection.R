@@ -2,7 +2,8 @@
 
 source("mk-specifics.R")
 
-# the longest case study here (TB) takes >10hr on a modern machine to fit one instance of the reversible model
+# the longest case study here (TB) takes several hours on a modern machine to fit one instance of the reversible model
+# (that's after subsetting the full dataset)
 # using more trials increases the chance we find the global optimum, but will multiply this runtime
 # minimum value is 1 -- use this if computer time is limiting
 Ntrials = 1
@@ -60,24 +61,35 @@ dev.off()
 # 7 "ovarian", 8 "TB"
 
 # by default, we'll only run the quickest experiments (1-6); increase to 8 for the long haul
-nexpts = 6
+nexpts = 8
+Ntrials = 1
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,
                               SIMPLIFY = FALSE,
                               mc.cores = min(detectCores(), nexpts))
 
-pmaxs = c(0.03, 0.03, 0.05, 0.02, 0.02, 0.05, 0.05, 0.05)
+pmaxs = c(0.03, 0.03, 0.05, 0.0, 0.02, 0.05, 0.05, 0.05)
 pmaxs = rep(0,8)
-obls = rep(FALSE, 8); obls[7] = TRUE
+obls = rep(FALSE, 8); obls[8] = TRUE
 fig.list = list()
 sf = 2
-for(i in 1:nexpts) {
-  fig.list[[i]] = results.fig(parallelised.runs[[i]], omit.branch.lengths = obls[i], flux.threshold.pmax = pmaxs[i])
+for(i in 1:nexpts) {    
+  message(paste0("Experiment ", i, collapse=""))
+  fig.list[[i]] = results.fig(parallelised.runs[[i]], 
+                              omit.branch.lengths = obls[i], 
+                              flux.threshold.pmax = pmaxs[i],
+                              AICc=FALSE)
   png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()
 }
 
+expt = 6
+results.fig(parallelised.runs[[expt]], omit.branch.lengths = obls[expt], flux.threshold.pmax = pmaxs[expt])
+
+Ntrials = 3
+tmp = parallel.fn(2)
+results.fig(tmp, flux.threshold.pmax = 0)
 
 ##### If you only want to run a subset of the experiments
 ##   Change the indices passed to argument fork in the call to

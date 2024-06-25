@@ -198,6 +198,7 @@ setup.data = function(expt) {
     uncertain = FALSE
     my.tree = read.tree("Data/ng.2878-S2.txt")
     my.data = read.csv("Data/tuberculosis-v5-header-19-29.csv")
+    my.data = my.data[1:150,1:(L+1)]
     
     # prune tips that don't have corresponding observations
     tips.togo = c()
@@ -272,6 +273,16 @@ parallel.fn = function(fork) {
   
   expt = expt.set[fork]
   
+  expt.max.it = 2000
+  if(fork == 4) {
+    expt.max.it = 5000
+  }
+  expt.flux.samples = 100000
+  if(fork == 8) {
+    expt.flux.samples = 200000
+  }
+  expt.flux.limit = 1000
+  
   # get the data structure for this case
   dset = setup.data(expt)
   
@@ -283,37 +294,65 @@ parallel.fn = function(fork) {
     use.priors = FALSE
   }
   
+  n.sample = length(dset$x.decimal)
+  
   # irreversible model fit
-  print("irreversible")
+  message("Irreversible model")
   mk.out.irrev = mk.inference(dset$tree, dset$L, 
                               use.priors, dset$tips, 
                               reversible = FALSE,
+                              optim_max_iterations = expt.max.it,
                               Ntrials = Ntrials,
-                              Nthreads = Nthreads)
-  to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
-  print("irreversible pruned")
+                              Nthreads = Nthreads,
+                              flux.samples = expt.flux.samples)
+  mk.out.irrev$myAIC = mk.out.irrev$fitted_mk$AIC
+  k.irrev = (mk.out.irrev$myAIC - 2*mk.out.irrev$fitted_mk$loglikelihood)/2
+  # AIC = 2k - 2 log L => k = (AIC + 2 log L)/2
+  # AICc = AIC - (2k^2 + 2k)/(n - k - 1)  
+  mk.out.irrev$myAICc = mk.out.irrev$myAIC - (2*k.irrev*k.irrev + 2*k.irrev)/(n.sample - k.irrev - 1)
+  
+  to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux<expt.flux.limit),1:2]+1
+  message("Irreversible model, pruned")
   mk.out.irrev.pruned = mk.inference(dset$tree, dset$L, 
                                      use.priors, dset$tips, 
                                      reversible = FALSE,
+                                     optim_max_iterations = expt.max.it,
                                      Ntrials = Ntrials,
-                                     to.nullify = to.nullify.irrev)
+                                     to.nullify = to.nullify.irrev,
+                                     flux.samples = expt.flux.samples)
+  nonzeroes = length(which(mk.out.irrev.pruned$fitted_mk$transition_matrix!=0))
+  nonzeroes.diag = length(which(diag(mk.out.irrev.pruned$fitted_mk$transition_matrix)!=0))
+  mk.out.irrev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.irrev.pruned$fitted_mk$loglikelihood
+  k.irrev.pruned = (mk.out.irrev.pruned$myAIC - 2*mk.out.irrev.pruned$fitted_mk$loglikelihood)/2
+  mk.out.irrev.pruned$myAICc = mk.out.irrev.pruned$myAIC - (2*k.irrev.pruned*k.irrev.pruned + 2*k.irrev.pruned)/(n.sample - k.irrev.pruned - 1)
   
   # reversible model fit
-  print("reversible")
+  message("Reversible model")
   mk.out.rev = mk.inference(dset$tree, dset$L, 
                             use.priors, dset$tips, 
                             reversible = TRUE,
-                            optim_max_iterations = 2000,
+                            optim_max_iterations = expt.max.it,
                             Ntrials = Ntrials,
-                            Nthreads = Nthreads)
-  to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux==0),1:2]+1
-  print("reversible pruned")
+                            Nthreads = Nthreads,
+                            flux.samples = expt.flux.samples)
+  mk.out.rev$myAIC = mk.out.rev$fitted_mk$AIC
+  k.rev = (mk.out.rev$myAIC - 2*mk.out.rev$fitted_mk$loglikelihood)/2
+  mk.out.rev$myAICc = mk.out.rev$myAIC - (2*k.rev*k.rev + 2*k.rev)/(n.sample - k.rev - 1)
+  
+  to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux<expt.flux.limit),1:2]+1
+  message("Reversible model, pruned")
   mk.out.rev.pruned = mk.inference(dset$tree, dset$L, 
                                    use.priors, dset$tips, 
                                    reversible = TRUE,
-                                   optim_max_iterations = 2000,
+                                   optim_max_iterations = expt.max.it,
                                    Ntrials = Ntrials,
-                                   to.nullify = to.nullify.rev)
+                                   to.nullify = to.nullify.rev, 
+                                   flux.samples = expt.flux.samples)
+  nonzeroes = length(which(mk.out.rev.pruned$fitted_mk$transition_matrix!=0))
+  nonzeroes.diag = length(which(diag(mk.out.rev.pruned$fitted_mk$transition_matrix)!=0))
+  mk.out.rev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.rev.pruned$fitted_mk$loglikelihood
+  k.rev.pruned = (mk.out.rev.pruned$myAIC - 2*mk.out.rev.pruned$fitted_mk$loglikelihood)/2
+  mk.out.rev.pruned$myAICc = mk.out.rev.pruned$myAIC - (2*k.rev.pruned*k.rev.pruned + 2*k.rev.pruned)/(n.sample - k.irrev.pruned - 1)
   
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev,
                   mk.out.irrev.pruned=mk.out.irrev.pruned, mk.out.rev.pruned=mk.out.rev.pruned)
@@ -323,7 +362,11 @@ parallel.fn = function(fork) {
 
 ## specific to the parallel implementation here:
 # prepare three-panel results figure: data, irreversible fit, reversible fit
-results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.branch.lengths = FALSE) {
+results.fig = function(combined.obj, 
+                       label="", 
+                       flux.threshold.pmax = 0.01, 
+                       omit.branch.lengths = FALSE,
+                       AICc = TRUE) {
   
   if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
     message("WARNING: irreversible fit didn't converge!")
@@ -340,17 +383,27 @@ results.fig = function(combined.obj, label="", flux.threshold.pmax = 0.01, omit.
   graph.df.rev = combined.obj$mk.out.rev.pruned$mk_fluxes
   L = combined.obj$dset$L
   
-  AIC.rev = combined.obj$mk.out.rev$fitted_mk$AIC
-  AIC.rev.reduced = combined.obj$mk.out.rev.pruned$fitted_mk$AIC #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
-  title.rev = paste0("reversible fit, simplified AIC ~ ", round(AIC.rev.reduced, digits=2), 
+  if(AICc == FALSE) {
+    AIC.rev = combined.obj$mk.out.rev$myAIC
+    AIC.rev.reduced = combined.obj$mk.out.rev.pruned$myAIC
+    AIC.irrev = combined.obj$mk.out.irrev$myAIC
+    AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$myAIC 
+    ICstr = "AIC"
+  } else {
+    AIC.rev = combined.obj$mk.out.rev$myAICc
+    AIC.rev.reduced = combined.obj$mk.out.rev.pruned$myAICc 
+    AIC.irrev = combined.obj$mk.out.irrev$myAICc
+    AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$myAICc 
+    ICstr = "AICc"
+  }
+  
+  title.rev = paste0("reversible fit, simplified ", ICstr, " ~ ", round(AIC.rev.reduced, digits=2), 
                      " (full ", round(AIC.rev, digits=2), ")", collapse = "")
   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
   g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
     ggtitle(title.rev)
   
-  AIC.irrev = combined.obj$mk.out.irrev$fitted_mk$AIC
-  AIC.irrev.reduced = combined.obj$mk.out.irrev.pruned$fitted_mk$AIC #AIC.irrev - 2*length(which(combined.obj$mk.out.irrev$mk_fluxes$Flux==0))
-  title.irrev = paste0("irreversible fit, simplified AIC ~ ", round(AIC.irrev.reduced, digits=2), 
+  title.irrev = paste0("irreversible fit, simplified ", ICstr, " ~ ", round(AIC.irrev.reduced, digits=2), 
                        " (full ", round(AIC.irrev, digits=2), ")", collapse = "")
   
   graph.df.irrev = combined.obj$mk.out.irrev.pruned$mk_fluxes
