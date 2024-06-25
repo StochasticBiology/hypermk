@@ -77,8 +77,7 @@ for(i in 1:nexpts) {
   message(paste0("Experiment ", i, collapse=""))
   fig.list[[i]] = results.fig(parallelised.runs[[i]], 
                               omit.branch.lengths = obls[i], 
-                              flux.threshold.pmax = pmaxs[i],
-                              AICc=FALSE)
+                              flux.threshold.pmax = pmaxs[i])
   png(paste0("expt-pruned-", i, ".png"), width=1000*sf, height=350*sf, res=72*sf)
   print(fig.list[[i]])
   dev.off()
