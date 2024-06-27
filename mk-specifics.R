@@ -228,7 +228,7 @@ setup.data = function(expt) {
     my.tree2$tip.label = barcodes
     
     data.plot = ggtree(my.tree2, layout="circular") + geom_tiplab2(size=3)
-    data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=1)
+    data.plot.nb = ggtree(my.tree2, layout="circular", branch.length="none") + geom_tiplab2(size=2)
     
     x.decimal = tip.states
     x.binary = t(vapply(x.decimal,
@@ -383,7 +383,9 @@ results.fig = function(combined.obj,
                        label="", 
                        flux.threshold.pmax = 0.01, 
                        omit.branch.lengths = FALSE,
-                       stats = "full") {
+                       stats = "full",
+                       labels = c("A", "B", "C")
+                       ) {
   
   if(combined.obj$mk.out.irrev$fitted_mk$converged != TRUE) {
     message("WARNING: irreversible fit didn't converge!")
@@ -401,25 +403,25 @@ results.fig = function(combined.obj,
   L = combined.obj$dset$L
 
   if(stats == "full") {
-    title.rev = paste0("reversible fit, n = ", combined.obj$mk.out.rev$n, "\n",
-    " simplified: log L = ", round(combined.obj$mk.out.rev.pruned$logL, digits=2),
-    " k = ", combined.obj$mk.out.rev.pruned$k,
-    " AIC = ", round(combined.obj$mk.out.rev.pruned$myAIC, digits=2), 
-    " AICc = ", round(combined.obj$mk.out.rev.pruned$myAICc, digits=2), "\n",
-    " full: log L = ", round(combined.obj$mk.out.rev$logL, digits=2),
-    " k = ", combined.obj$mk.out.rev$k,
-    " AIC = ", round(combined.obj$mk.out.rev$myAIC, digits=2), 
-    " AICc = ", round(combined.obj$mk.out.rev$myAICc, digits=2))
+    title.rev = paste0("Reversible fit, n = ", combined.obj$mk.out.rev$n, "\n",
+    " - simplified: log L = ", round(combined.obj$mk.out.rev.pruned$logL, digits=2),
+    ", k = ", round(combined.obj$mk.out.rev.pruned$k, digits=0),
+    ", AIC = ", round(combined.obj$mk.out.rev.pruned$myAIC, digits=2), 
+    ", AICc = ", round(combined.obj$mk.out.rev.pruned$myAICc, digits=2), "\n",
+    " - full: log L = ", round(combined.obj$mk.out.rev$logL, digits=2),
+    ", k = ", round(combined.obj$mk.out.rev$k, digits=0),
+    ", AIC = ", round(combined.obj$mk.out.rev$myAIC, digits=2), 
+    ", AICc = ", round(combined.obj$mk.out.rev$myAICc, digits=2))
     
-    title.irrev = paste0("irreversible fit, n = ", combined.obj$mk.out.irrev$n, "\n",
-                       " simplified: log L = ", round(combined.obj$mk.out.irrev.pruned$logL, digits=2),
-                       " k = ", combined.obj$mk.out.irrev.pruned$k,
-                       " AIC = ", round(combined.obj$mk.out.irrev.pruned$myAIC, digits=2), 
-                       " AICc = ", round(combined.obj$mk.out.irrev.pruned$myAICc, digits=2), "\n",
-                       " full: log L = ", round(combined.obj$mk.out.irrev$logL, digits=2),
-                       " k = ", combined.obj$mk.out.irrev$k,
-                       " AIC = ", round(combined.obj$mk.out.irrev$myAIC, digits=2), 
-                       " AICc = ", round(combined.obj$mk.out.irrev$myAICc, digits=2))
+    title.irrev = paste0("Irreversible fit, n = ", combined.obj$mk.out.irrev$n, "\n",
+                       " - simplified: log L = ", round(combined.obj$mk.out.irrev.pruned$logL, digits=2),
+                       ", k = ", round(combined.obj$mk.out.irrev.pruned$k, digits=0),
+                       ", AIC = ", round(combined.obj$mk.out.irrev.pruned$myAIC, digits=2), 
+                       ", AICc = ", round(combined.obj$mk.out.irrev.pruned$myAICc, digits=2), "\n",
+                       " - full: log L = ", round(combined.obj$mk.out.irrev$logL, digits=2),
+                       ", k = ", round(combined.obj$mk.out.irrev$k, digits=0),
+                       ", AIC = ", round(combined.obj$mk.out.irrev$myAIC, digits=2), 
+                       ", AICc = ", round(combined.obj$mk.out.irrev$myAICc, digits=2))
   } else if(stats == "AICc") {
     title.rev = paste0("reversible fit, simplified AICc ~ ", round(combined.obj$mk.out.rev.pruned$myAICc, digits=2), 
                        " (full ", round(combined.obj$mk.out.rev$myAICc, digits=2), ")", collapse = "")
@@ -435,12 +437,12 @@ results.fig = function(combined.obj,
   
   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
   g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
-    ggtitle(title.rev)
+    ggtitle(title.rev) + theme(plot.title = element_text(hjust = 0.5))
   
   graph.df.irrev = combined.obj$mk.out.irrev.pruned$mk_fluxes
   flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
   g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
-    ggtitle(title.irrev)
+    ggtitle(title.irrev) + theme(plot.title = element_text(hjust = 0.5))
   
   if(omit.branch.lengths == FALSE) {
     g.data = combined.obj$dset$data.plot #+ ggtitle(label)
@@ -449,7 +451,7 @@ results.fig = function(combined.obj,
   }
   
   return( ggarrange(g.data, g.irrev, g.rev, nrow = 1, 
-                    labels = c("A", "B", "C"), 
+                    labels = labels, 
                     widths=c(0.8,1,1),
-                    label.y=c(1, 0.1, 0.1)) )
+                    label.y=c(1, 1, 1)) )
 }

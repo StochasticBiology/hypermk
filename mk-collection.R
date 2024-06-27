@@ -22,12 +22,18 @@ Nthreads = 1
 ### simple demo of pruning and refitting
 # simple synthetic cross-sectional dataset
 dset = setup.data("cross.sectional.single")
+n.sample = length(dset$x.decimal)
 
 # unpruned inference; all edges are parameters
 mk.out.irrev = mk.inference(dset$tree, dset$L, 
                             use.priors=TRUE, dset$tips, 
                             reversible = FALSE,
                             Ntrials = 1)
+mk.out.irrev$myAIC = mk.out.irrev$fitted_mk$AIC
+mk.out.irrev$n = n.sample
+mk.out.irrev$logL = mk.out.irrev$fitted_mk$loglikelihood
+mk.out.irrev$k = (mk.out.irrev$myAIC + 2*mk.out.irrev$logL)/2
+mk.out.irrev$myAICc = mk.out.irrev$myAIC - (2*mk.out.irrev$k**2 + 2*mk.out.irrev$k)/(mk.out.irrev$n - mk.out.irrev$k - 1)
 
 # prune a specific edge (here, corresponding to one alternative pathway)
 blanks = matrix(c(1,2), nrow=1, ncol=2, byrow = TRUE)
@@ -36,6 +42,11 @@ mk.out.irrev2 = mk.inference(dset$tree, dset$L,
                              reversible = FALSE,
                              Ntrials = 1,
                              to.nullify=blanks)
+mk.out.irrev2$myAIC = mk.out.irrev2$fitted_mk$AIC
+mk.out.irrev2$n = n.sample
+mk.out.irrev2$logL = mk.out.irrev2$fitted_mk$loglikelihood
+mk.out.irrev2$k = (mk.out.irrev2$myAIC + 2*mk.out.irrev2$logL)/2
+mk.out.irrev2$myAICc = mk.out.irrev2$myAIC - (2*mk.out.irrev2$k**2 + 2*mk.out.irrev2$k)/(mk.out.irrev2$n - mk.out.irrev2$k - 1)
 
 # get a set of edges to prune, corresponding to zero-flux edges in the previous example
 to.nullify = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux==0),1:2]+1
@@ -44,14 +55,22 @@ mk.out.irrev3 = mk.inference(dset$tree, dset$L,
                              reversible = FALSE,
                              Ntrials = 1,
                              to.nullify=to.nullify)
+nonzeroes = length(which(mk.out.irrev3$fitted_mk$transition_matrix!=0))
+nonzeroes.diag = length(which(diag(mk.out.irrev3$fitted_mk$transition_matrix)!=0))
+mk.out.irrev3$logL = mk.out.irrev3$fitted_mk$loglikelihood
+mk.out.irrev3$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.irrev3$logL
+mk.out.irrev3$n = n.sample
+mk.out.irrev3$k = (mk.out.irrev3$myAIC + 2*mk.out.irrev3$logL)/2
+mk.out.irrev3$myAICc = mk.out.irrev3$myAIC - 
+  (2*mk.out.irrev3$k**2 + 2*mk.out.irrev3$k)/(mk.out.irrev3$n - mk.out.irrev3$k - 1)
 
 # graphically compare these (with AICs)
 sf = 2
 png("fig-pruning.png", width=600*sf, height=400*sf, res=72*sf)
-ggarrange(mk.inference.plot(mk.out.irrev),
-          mk.inference.plot(mk.out.irrev2),
-          mk.inference.plot(mk.out.irrev3), 
-          nrow=1, labels=c("A", "B", "C"), label.y=0.1)
+ggarrange(mk.inference.plot(mk.out.irrev, full.title=TRUE) + theme(plot.title = element_text(hjust = 0.5)),
+          mk.inference.plot(mk.out.irrev2, full.title=TRUE) + theme(plot.title = element_text(hjust = 0.5)),
+          mk.inference.plot(mk.out.irrev3, full.title=TRUE) + theme(plot.title = element_text(hjust = 0.5)), 
+          nrow=1, labels=c("A", "B", "C"))
 dev.off()
 
 ##### run the set of experiments
@@ -82,6 +101,46 @@ for(i in 1:nexpts) {
   print(fig.list[[i]])
   dev.off()
 }
+
+png("fig-1.png", width=1000*sf, height=700*sf, res=72*sf)
+print(ggarrange(results.fig(parallelised.runs[[3]], 
+                            omit.branch.lengths = obls[3], 
+                            flux.threshold.pmax = pmaxs[3],
+                            stats = "AICc"),
+                results.fig(parallelised.runs[[4]], 
+                            omit.branch.lengths = obls[4], 
+                            flux.threshold.pmax = pmaxs[4], 
+                            stats = "AICc",
+                            labels=c("D", "E", "F")),
+                nrow=2))
+dev.off()
+
+png("fig-2.png", width=1000*sf, height=700*sf, res=72*sf)
+print(ggarrange(results.fig(parallelised.runs[[6]], 
+                            omit.branch.lengths = obls[6], 
+                            flux.threshold.pmax = pmaxs[6],
+                            stats = "AICc"),
+                results.fig(parallelised.runs[[5]], 
+                            omit.branch.lengths = obls[5], 
+                            flux.threshold.pmax = pmaxs[5], 
+                            stats = "AICc",
+                            labels=c("D", "E", "F")),
+                nrow=2))
+dev.off()
+
+png("fig-3.png", width=1000*sf, height=350*sf, res=72*sf)
+print(ggarrange(results.fig(parallelised.runs[[7]], 
+                            omit.branch.lengths = obls[7], 
+                            flux.threshold.pmax = pmaxs[7],
+                            stats = "AICc")))
+dev.off()
+
+png("fig-4.png", width=1000*sf, height=350*sf, res=72*sf)
+print(ggarrange(results.fig(parallelised.runs[[8]], 
+                            omit.branch.lengths = obls[8], 
+                            flux.threshold.pmax = pmaxs[8],
+                            stats = "AICc")))
+dev.off()
 
 expt = 6
 results.fig(parallelised.runs[[expt]], omit.branch.lengths = obls[expt], flux.threshold.pmax = pmaxs[expt])

@@ -316,10 +316,17 @@ plot.hypercube2 = function(trans.f, bigL, rates=FALSE) {
 }
 
 # plot the output of one mk.inference experiment
-mk.inference.plot = function(fitted.obj, flux.threshold = 0) {
+mk.inference.plot = function(fitted.obj, flux.threshold = 0, full.title = FALSE) {
   L = log2(fitted.obj$fitted_mk$Nstates)
   AIC.val = round(fitted.obj$fitted_mk$AIC, digits=1) #AIC.rev - 2*length(which(combined.obj$mk.out.rev$mk_fluxes$Flux==0))
   title.val = paste0("AIC = ", AIC.val, collapse = "")
+  if(full.title == TRUE) {
+    title.val = paste0("n = ", fitted.obj$n, 
+    ", log L = ", round(fitted.obj$logL, digits=2),
+    ", k = ", fitted.obj$k, ",\n",
+    "AIC = ", round(fitted.obj$myAIC, digits=2), 
+    ", AICc = ", round(fitted.obj$myAICc, digits=2), collapse="")
+  }
   flux.threshold.scale = flux.threshold*max(fitted.obj$mk_fluxes$Flux)
   return(plot.hypercube2(fitted.obj$mk_fluxes[fitted.obj$mk_fluxes$Flux > flux.threshold.scale,], L) +
            ggtitle(title.val) )
