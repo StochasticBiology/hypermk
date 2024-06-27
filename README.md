@@ -5,7 +5,8 @@ HyperMk for reversible accumulation modelling
 
 HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1,2] from phylogenetics to model accumulation processes, including reversibility. The code here uses the `castor` library in R [3] to provide flexible specification and fitting of the Mk model. 
 
-![image](https://github.com/StochasticBiology/hypermk/assets/50171196/2e190633-07ad-4550-9660-117d7b44b714)
+![image](https://github.com/StochasticBiology/hypermk/assets/50171196/6d03abd9-015b-4629-8a48-287a616cf65f)
+
 
 Contents
 ---
