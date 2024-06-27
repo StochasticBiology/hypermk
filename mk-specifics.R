@@ -282,10 +282,11 @@ parallel.fn = function(fork) {
     expt.max.it = 5000
   }
   expt.flux.samples = 100000
-  if(fork >= 8) {
-    expt.flux.samples = 200000
-  }
   expt.flux.limit = 1000
+  if(fork >= 8) {
+    expt.flux.samples = 100000
+    expt.flux.limit = 1
+  }
   
   # get the data structure for this case
   dset = setup.data(expt)

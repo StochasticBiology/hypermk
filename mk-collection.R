@@ -4,7 +4,7 @@ source("mk-specifics.R")
 
 # the longest case study here (TB) takes several hours on a modern machine to fit one instance of the reversible model
 # (that's after subsetting the full dataset)
-# using more trials increases the chance we find the global optimum, but will multiply this runtime
+# using more trials increases the chance we find the global optimum, but will multiply this runtime UNLESS we use more threads (below)
 # minimum value is 1 -- use this if computer time is limiting
 Ntrials = 1
 
