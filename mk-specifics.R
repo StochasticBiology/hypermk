@@ -316,7 +316,7 @@ parallel.fn = function(fork) {
   mk.out.irrev$k = (mk.out.irrev$myAIC + 2*mk.out.irrev$logL)/2
   # AIC = 2k - 2 log L => k = (AIC + 2 log L)/2
   # AICc = AIC - (2k^2 + 2k)/(n - k - 1)  
-  mk.out.irrev$myAICc = mk.out.irrev$myAIC - (2*mk.out.irrev$k**2 + 2*mk.out.irrev$k)/(mk.out.irrev$n - mk.out.irrev$k - 1)
+  mk.out.irrev$myAICc = mk.out.irrev$myAIC + (2*mk.out.irrev$k**2 + 2*mk.out.irrev$k)/(mk.out.irrev$n - mk.out.irrev$k - 1)
   
   to.nullify.irrev = mk.out.irrev$mk_fluxes[which(mk.out.irrev$mk_fluxes$Flux<expt.flux.limit),1:2]+1
   message("Irreversible model, pruned")
@@ -333,7 +333,7 @@ parallel.fn = function(fork) {
   mk.out.irrev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.irrev.pruned$logL
   mk.out.irrev.pruned$n = n.sample
   mk.out.irrev.pruned$k = (mk.out.irrev.pruned$myAIC + 2*mk.out.irrev.pruned$logL)/2
-  mk.out.irrev.pruned$myAICc = mk.out.irrev.pruned$myAIC - 
+  mk.out.irrev.pruned$myAICc = mk.out.irrev.pruned$myAIC + 
     (2*mk.out.irrev.pruned$k**2 + 2*mk.out.irrev.pruned$k)/(mk.out.irrev.pruned$n - mk.out.irrev.pruned$k - 1)
   
   # reversible model fit
@@ -351,7 +351,7 @@ parallel.fn = function(fork) {
   mk.out.rev$k = (mk.out.rev$myAIC + 2*mk.out.rev$logL)/2
   # AIC = 2k - 2 log L => k = (AIC + 2 log L)/2
   # AICc = AIC - (2k^2 + 2k)/(n - k - 1)  
-  mk.out.rev$myAICc = mk.out.rev$myAIC - (2*mk.out.rev$k**2 + 2*mk.out.rev$k)/(mk.out.rev$n - mk.out.rev$k - 1)
+  mk.out.rev$myAICc = mk.out.rev$myAIC + (2*mk.out.rev$k**2 + 2*mk.out.rev$k)/(mk.out.rev$n - mk.out.rev$k - 1)
   
   to.nullify.rev = mk.out.rev$mk_fluxes[which(mk.out.rev$mk_fluxes$Flux<expt.flux.limit),1:2]+1
   message("Reversible model, pruned")
@@ -368,7 +368,7 @@ parallel.fn = function(fork) {
   mk.out.rev.pruned$myAIC = 2*(nonzeroes-nonzeroes.diag)-2*mk.out.rev.pruned$logL
   mk.out.rev.pruned$n = n.sample
   mk.out.rev.pruned$k = (mk.out.rev.pruned$myAIC + 2*mk.out.rev.pruned$logL)/2
-  mk.out.rev.pruned$myAICc = mk.out.rev.pruned$myAIC - 
+  mk.out.rev.pruned$myAICc = mk.out.rev.pruned$myAIC + 
     (2*mk.out.rev.pruned$k**2 + 2*mk.out.rev.pruned$k)/(mk.out.rev.pruned$n - mk.out.rev.pruned$k - 1)
   
   l.return = list(dset=dset, mk.out.irrev=mk.out.irrev, mk.out.rev=mk.out.rev,
