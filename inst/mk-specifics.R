@@ -466,12 +466,12 @@ results.fig = function(combined.obj,
   }
 
   flux.threshold.rev = flux.threshold.pmax*max(graph.df.rev$Flux)
-  g.rev = plot.hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
+  g.rev = plot_hypercube2(graph.df.rev[graph.df.rev$Flux > flux.threshold.rev,], L) +
     ggtitle(title.rev) + theme(plot.title = element_text(hjust = 0.5))
 
   graph.df.irrev = combined.obj$mk.out.irrev.pruned$mk_fluxes
   flux.threshold.irrev = flux.threshold.pmax*max(graph.df.irrev$Flux)
-  g.irrev = plot.hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
+  g.irrev = plot_hypercube2(graph.df.irrev[graph.df.irrev$Flux > flux.threshold.irrev,], L) +
     ggtitle(title.irrev) + theme(plot.title = element_text(hjust = 0.5))
 
   if(omit.branch.lengths == FALSE) {
