@@ -7,6 +7,10 @@ HyperMk in an R library form. Install with
 
 `remotes::install_github("StochasticBiology/hypermk", ref = "r-library")`
 
+You can find the demo files with
+
+`system.file(".", package = "hypermk")`
+
 Now with associated article in Bioinformatics: https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/btae737/7922554
 
 HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1,2] from phylogenetics to model accumulation processes, including reversibility. The code here uses the `castor` library in R [3] to provide flexible specification and fitting of the Mk model. 
