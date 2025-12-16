@@ -1,6 +1,7 @@
 require(hypermk)
 require(parallel)
 require(ggplot2)
+require(ggtree)
 
 # binary to decimal function
 BinToDec <- function(x) {
