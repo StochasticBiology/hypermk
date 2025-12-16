@@ -26,7 +26,7 @@ Nthreads = 1
 # 7 "ovarian", 8 "TB"
 
 # by default, we'll only run the quickest experiments (1-6); increase to 8 for the long haul
-nexpts = 8
+nexpts = 6
 Ntrials = 1
 parallelised.runs <- mcmapply(parallel.fn,
                               fork = 1:nexpts,

@@ -1,5 +1,31 @@
 require(hypermk)
 require(parallel)
+require(ggplot2)
+
+# binary to decimal function
+BinToDec <- function(x) {
+  sum(2^(which(rev(unlist(strsplit(as.character(x), "")) == 1))-1))
+}
+
+# decimal to binary function
+DecToBin <- function(x, len) {
+  s = c()
+  for(j in (len-1):0)
+  {
+    if(x >= 2**j) { s=c(s,1); x = x-2**j } else { s=c(s,0)}
+  }
+  return(paste(s, collapse=""))
+}
+
+# decimal to binary function, returning a numerical vector
+DecToBinV <- function(x, len) {
+  s = c()
+  for(j in (len-1):0)
+  {
+    if(x >= 2**j) { s=c(s,1); x = x-2**j } else { s=c(s,0)}
+  }
+  return(s)
+}
 
 # populate a named list with data and visualisations corresponding to synthetic test and scientific cases
 # argument specifies the particular case to produce
