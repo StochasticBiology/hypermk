@@ -3,7 +3,15 @@
 HyperMk for reversible accumulation modelling
 ===
 
-Now with associated article in Bioinformatics: https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/btae737/7922554
+HyperMk in an R library form. Install with
+
+`remotes::install_github("StochasticBiology/hypermk")`
+
+You can find the demo files with
+
+`system.file(".", package = "hypermk")`
+
+Now with associated article in Bioinformatics: https://academic.oup.com/bioinformatics/advance-article/doi/10.1093/bioinformatics/btae737/7922554 . The original codebase was not in an R package format; you can find it here https://github.com/StochasticBiology/hypermk/tree/publication-code .
 
 HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1,2] from phylogenetics to model accumulation processes, including reversibility. The code here uses the `castor` library in R [3] to provide flexible specification and fitting of the Mk model. 
 
@@ -12,23 +20,31 @@ HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model [1
 
 Contents
 ---
+General, in `R/`:
 
 * `mk-shared.R` contains a set of common functions for labelling and plotting, as well as for creating the matrices for specifying parameter forms for HyperMk
+
+Specific to research article, in `inst/`, producing the figures for the above article:
+
 * `mk-specifics.R` contains a set of helper functions for creating and analysing a set of synthetic and real-world examples, including analysis of a cross-sectional ovarian cancer dataset and a phylogenetic TB dataset.
 * `mk-collection.R` runs inference on these synthetic and real-world examples
-* `other_methods/compare-single.R` demonstrates the use of alternative fitting approaches for the core functionality
 * `mk-timing.R` scans through properties of synthetic datasets to demonstrate the time scaling of this implementation.
-* `mk-verbose-cross-sectional-examples.R` contains small, heavily commented
-  cross-sectional examples.
 
-`Data` contains data on drug resistance evolution in tuberculosis from [4], and from the ovarian cancer CGH study [5], which are used as case studies.
+`inst/extdata` contains data on drug resistance evolution in tuberculosis from [4], and from the ovarian cancer CGH study [5], which are used as case studies.
 
 Specifically:
 
 `mk-shared.R`
 ----
 
+The first few functions are higher-level and should be sufficient for application to a given dataset (see `mk-demo.R`). The others are lower-level and mainly used internally.
+
 | Function | Description |
+|----------|------------ |
+| `mk_infer_cross_sectional` | simple wrapper of `mk_cross_sectional` + `mk.inference`, taking a matrix and outputting the fitted model |
+| `mk_infer_phylogenetic` | simple wrapper of `mk_phylogeny_precise` + `mk.inference`, taking a matrix and tree and outputting the fitted model |
+| `mk_prune_model` | prunes a fitted model by removing low-flux edges and refitting. Takes a fitted model and a threshold flux
+| `mk.inference.plot` | plots a fitted model. takes a fitted model, an optional threshold flux, and an optional Boolean describing whether to use a verbose title
 |----------|------------ |
 | `mk.inference` | fits the hypercubic Mk model of choice to a prepared dataset, simulates fluxes on the transition graph, and returns details of the fit including the parameterised hypercube |
 | `mk_index_matrix` | produces the index matrix for a given experimental design, assigning integer labels to permitted transitions between states (reversible/irreversible, specified edges removed) |
@@ -37,7 +53,6 @@ Specifically:
 | `mk_phylogeny_precise` | given a set of states and a tree linking them, prepare the data for use in `mk.inference` |
 | `mk_cross_sectional` | given a set of cross-sectional states, prepare the data for use in `mk.inference` |
 | `mk_infer_cross_sectional` | simple wrapper of `mk_cross_sectional` + `mk.inference`, taking a matrix and outputting the fitted model |
-| `mk.inference.plot` | plots the output of `mk.inference` |
 
 `mk-specifics.R`
 ----
