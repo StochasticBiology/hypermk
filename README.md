@@ -5,7 +5,7 @@ HyperMk for reversible accumulation modelling
 
 HyperMk in an R library form. Install with
 
-`remotes::install_github("StochasticBiology/hypermk", ref = "r-library")`
+`remotes::install_github("StochasticBiology/hypermk")`
 
 You can find the demo files with
 
