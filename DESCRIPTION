@@ -1,12 +1,22 @@
-Package: hypermk
+Package: hyperdags
 Type: Package
-Title: Hypercubic Mk Model for Accumulation Modelling
+Title: Hypercubic directed acyclic graphs in accumulation modelling
 Version: 0.1.0
-Author: Iain Johnston and Ramon Diaz-Uriarte
+Author: Kostas Giannakis, Iain Johnston
 Maintainer: Iain Johnston <aeioun@gmail.com>
-Description: HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model from phylogenetics to model accumulation processes, including reversibility. 
-License: CC BY 4.0
+Description: An R library and associated case study code for analysing DAG skeletons on hypercubic transition networks.
+License: MIT + file LICENSE
 Encoding: UTF-8
-Imports: ape, phangorn, castor, igraph, ggplot2, ggraph, stringr, ggpubr, ggtree
 LazyData: true
 RoxygenNote: 7.3.2
+Imports: 
+    dplyr,
+    ggplot2,
+    ggpubr,
+    ggraph,
+    igraph,
+    stringdist,
+    stringr,
+    ape,
+    ggtree,
+    phangorn
