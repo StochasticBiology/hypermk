@@ -1,15 +1,5 @@
 # shared library loads and helper function for Mk model project
 
-require(ape)
-require(phangorn)
-require(castor)
-require(igraph)
-require(ggplot2)
-require(ggraph)
-require(stringr)
-require(ggpubr)
-require(ggtree)
-
 ## Functions from the above packages called explicitly
 ## ape:
 ##     rphylo
