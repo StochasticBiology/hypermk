@@ -1,12 +1,12 @@
 Package: hypermk
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Hypercubic Mk Model for Accumulation Modelling
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Author: Iain Johnston and Ramon Diaz-Uriarte
+Maintainer: Iain Johnston <aeioun@gmail.com>
+Description: HyperMk uses a hypercubic transition matrix and the Mk (Markov k-state) model from phylogenetics to model accumulation processes, including reversibility. 
+License: CC BY 4.0
 Encoding: UTF-8
+Imports: ape, phangorn, castor, igraph, ggplot2, ggraph, stringr, ggpubr, ggtree
 LazyData: true
 RoxygenNote: 7.3.2
