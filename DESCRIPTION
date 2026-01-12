@@ -1,4 +1,4 @@
-Package: hyperdags
+Package: hypermk
 Type: Package
 Title: Hypercubic directed acyclic graphs in accumulation modelling
 Version: 0.1.0
@@ -20,3 +20,5 @@ Imports:
     ape,
     ggtree,
     phangorn
+Remotes:
+    YuLab-SMU/ggtree
