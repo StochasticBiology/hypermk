@@ -60,13 +60,17 @@ convname = function(str) {
 #' @param L (integer) number of features
 #' @param reversible (Boolean, default TRUE) whether to create a reversible model or not
 #' @param to.nullify (n x 2 matrix) from-to transitions to set to zero
+#' @param first.order (Boolean, default FALSE) whether to use a first-order model where characters are independently acquired
 #'
 #' @return a matrix with the required parameter index structure
 #' @export
 #' @examples
 #' mk_index_matrix(3)
 #'
-mk_index_matrix = function(L, reversible=TRUE, to.nullify=matrix(nrow=0,ncol=2)) {
+mk_index_matrix = function(L, 
+                           reversible=TRUE, 
+                           to.nullify=matrix(nrow=0,ncol=2),
+                           first.order = FALSE) {
   index_matrix = matrix(rep(0, (2**L)**2), nrow=2**L)
   index = 1
   # go through binary strings and put indices on transitions to Hamming +1 neighbours
@@ -78,14 +82,22 @@ mk_index_matrix = function(L, reversible=TRUE, to.nullify=matrix(nrow=0,ncol=2))
         c[j] = 1
         partner = BinToDec(c)
         if(!any(to.nullify[,1]==i+1 & to.nullify[,2]==partner+1)) {
-          index_matrix[i+1,partner+1] = index
-          index = index+1
+          if(first.order == FALSE) {
+            index_matrix[i+1,partner+1] = index
+            index = index+1
+          } else {
+            index_matrix[i+1,partner+1] = j
+          }
         }
         if(reversible == TRUE) {
           # add reverse transition if required
           if(!any(to.nullify[,1]==partner+1 & to.nullify[,2]==i+1)) {
-            index_matrix[partner+1,i+1] = index
-            index = index+1
+            if(first.order == FALSE) {
+              index_matrix[partner+1,i+1] = index
+              index = index+1
+            } else {
+              index_matrix[partner+1,i+1] = L+j
+            }
           }
         }
       }
@@ -426,6 +438,7 @@ mk.inference.plot = function(fitted.obj, flux.threshold = 0, full.title = FALSE)
 #' @param Nthreads (integer, default 1) number of threads to use
 #' @param to.nullify (n x 2 matrix) from-to transitions to set to zero
 #' @param flux.samples (integer, default 10000) number of samples to take in characterising flux
+#' @param first.order (Boolean, default FALSE) whether to use a first-order model where every character is acquired independently
 #'
 #' @return a fitted hypermk model
 #' @export
@@ -438,13 +451,13 @@ mk.inference = function(mk.tree, L, use.priors, tips, reversible,
                         optim_max_iterations = 200, Ntrials = 1,
                         optim_algorithm = c("optim", "nlminb"), Nthreads = 1,
                         to.nullify = matrix(nrow=0, ncol=2),
-                        flux.samples = 10000) {
+                        flux.samples = 10000, first.order = FALSE) {
   optim_algorithm = match.arg(optim_algorithm)
   # for cross-sectional data and uncertain data, tips = tip.priors, use.priors = TRUE
   # otherwise, tips = tip.states, use.priors = FALSE
 
   # construct matrix describing possible transitions
-  index_matrix = mk_index_matrix(L, reversible=reversible, to.nullify=to.nullify)
+  index_matrix = mk_index_matrix(L, reversible=reversible, to.nullify=to.nullify, first.order = first.order)
 
   # do the Mk model fitting
   # remember the (deterministic) prior on the root state! this is important
