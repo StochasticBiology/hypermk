@@ -4,7 +4,12 @@
 \alias{mk_index_matrix}
 \title{Make an indexing matrix containing required parameter structure}
 \usage{
-mk_index_matrix(L, reversible = TRUE, to.nullify = matrix(nrow = 0, ncol = 2))
+mk_index_matrix(
+  L,
+  reversible = TRUE,
+  to.nullify = matrix(nrow = 0, ncol = 2),
+  first.order = FALSE
+)
 }
 \arguments{
 \item{L}{(integer) number of features}
@@ -12,6 +17,8 @@ mk_index_matrix(L, reversible = TRUE, to.nullify = matrix(nrow = 0, ncol = 2))
 \item{reversible}{(Boolean, default TRUE) whether to create a reversible model or not}
 
 \item{to.nullify}{(n x 2 matrix) from-to transitions to set to zero}
+
+\item{first.order}{(Boolean, default FALSE) whether to use a first-order model where characters are independently acquired}
 }
 \value{
 a matrix with the required parameter index structure

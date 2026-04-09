@@ -15,7 +15,8 @@ mk.inference(
   optim_algorithm = c("optim", "nlminb"),
   Nthreads = 1,
   to.nullify = matrix(nrow = 0, ncol = 2),
-  flux.samples = 10000
+  flux.samples = 10000,
+  first.order = FALSE
 )
 }
 \arguments{
@@ -40,6 +41,8 @@ mk.inference(
 \item{to.nullify}{(n x 2 matrix) from-to transitions to set to zero}
 
 \item{flux.samples}{(integer, default 10000) number of samples to take in characterising flux}
+
+\item{first.order}{(Boolean, default FALSE) whether to use a first-order model where every character is acquired independently}
 }
 \value{
 a fitted hypermk model
